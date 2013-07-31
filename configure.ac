@@ -425,6 +425,10 @@ if test "x${with_simd}" != "xno"; then
          with_simd=no
          AC_MSG_WARN([SIMD support can't be enabled.  Performance will suffer.])])
       ;;
+    mips*)
+         simd_arch=mips64el;
+         with_simd=yes;
+      ;;
     *)
       AC_MSG_RESULT([no ("$host_cpu")])
       AC_MSG_WARN([SIMD support not available for this CPU.  Performance will suffer.])
@@ -446,6 +450,7 @@ AM_CONDITIONAL([SIMD_X86_64], [test "x$simd_arch" = "xx86_64"])
 AM_CONDITIONAL([SIMD_ARM], [test "x$simd_arch" = "xarm"])
 AM_CONDITIONAL([X86_64], [test "x$host_cpu" = "xx86_64" -o "x$host_cpu" = "xamd64"])
 AM_CONDITIONAL([WITH_TURBOJPEG], [test "x$with_turbojpeg" != "xno"])
+AM_CONDITIONAL([SIMD_LOONGSON], [test "x$simd_arch" = "xmips64el"])
 
 AC_ARG_VAR(PKGNAME, [distribution package name (default: libjpeg-turbo)])
 if test "x$PKGNAME" = "x"; then

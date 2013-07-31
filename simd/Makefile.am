@@ -58,6 +58,12 @@ libsimd_la_SOURCES = jsimd_arm.c jsimd_arm_neon.S
 
 endif
 
+if SIMD_LOONGSON
+
+libsimd_la_SOURCES = jsimd_loongson.c
+
+endif
+
 AM_CPPFLAGS = -I$(top_srcdir) 
 
 .asm.lo:

@@ -18,6 +18,7 @@
 #define JSIMD_SSE        0x04
 #define JSIMD_SSE2       0x08
 #define JSIMD_ARM_NEON   0x10
+#define JSIMD_LOONGSON   0x20
 
 /* Short forms of external names for systems with brain-damaged linkers. */
 
