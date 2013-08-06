@@ -60,7 +60,7 @@ endif
 
 if SIMD_LOONGSON
 
-libsimd_la_SOURCES = jsimd_loongson.c
+libsimd_la_SOURCES = jsimd_loongson.c jsimd_loongson_mmx.c
 
 endif
 

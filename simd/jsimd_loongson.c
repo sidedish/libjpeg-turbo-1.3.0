@@ -1054,7 +1054,7 @@ jsimd_can_idct_islow (void)
     return 1;
 
   if (simd_support & JSIMD_LOONGSON)
-    return 0; //TODO
+    return 1; //TODO
 
   return 0;
 }
@@ -1131,6 +1131,7 @@ jsimd_idct_islow (j_decompress_ptr cinfo, jpeg_component_info * compptr,
   else if (simd_support & JSIMD_MMX)
     jsimd_idct_islow_mmx(compptr->dct_table, coef_block, output_buf, output_col);
 #endif
+    jsimd_idct_islow_mmx(compptr->dct_table, coef_block, output_buf, output_col);
 }
 
 GLOBAL(void)
