@@ -256,6 +256,7 @@ jsimd_idct_islow_mmx (void * dct_table,
     		printf("0x%16llx\n", to_uint64(inptr7));
 #endif
 
+#if 0
 		if (test_m64_zero(mm1)) {
 			/* AC terms all zero */
 			__m64 dcval = _mm_load_si64((__m64 *)&inptr[DCTSIZE*0]);
@@ -294,6 +295,7 @@ jsimd_idct_islow_mmx (void * dct_table,
 			wsptr += loopsize;
 			continue;
 		}
+#endif
 
 		/* Even part: reverse the even part of the forward DCT. */
 		/* The rotator is sqrt(2)*c(-6). */
@@ -862,7 +864,6 @@ jsimd_idct_islow_mmx (void * dct_table,
 #ifdef DEBUG_PASS2
 	while(1);
 #endif
-
 }
 
 #endif /* DCT_ISLOW_SUPPORTED */
