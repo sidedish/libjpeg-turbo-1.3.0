@@ -452,6 +452,12 @@ AM_CONDITIONAL([X86_64], [test "x$host_cpu" = "xx86_64" -o "x$host_cpu" = "xamd6
 AM_CONDITIONAL([WITH_TURBOJPEG], [test "x$with_turbojpeg" != "xno"])
 AM_CONDITIONAL([SIMD_LOONGSON], [test "x$simd_arch" = "xmips64el"])
 
+if test "x$simd_arch" = "xmips64el" ; then
+	CFLAGS="-march=loongson2f ${CFLAGS}"
+	echo
+	echo "Loongson SIMD debug: CFLAGS=${CFLAGS}"
+fi
+
 AC_ARG_VAR(PKGNAME, [distribution package name (default: libjpeg-turbo)])
 if test "x$PKGNAME" = "x"; then
   PKGNAME=$PACKAGE_NAME

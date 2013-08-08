@@ -173,6 +173,9 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
  * Perform dequantization and inverse DCT on one block of coefficients.
  */
 
+#define get_m64_value(addr) (*(__m64 *)addr)
+#define test_m64_zero(mm64) (!(*(u64 *)&mm64))
+
 GLOBAL(void)
 jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		JCOEFPTR coef_block,
@@ -206,6 +209,7 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		 * With typical images and quantization tables, half or more of the
 		 * column DCT calculations can be simplified this way.
 		 */
+#if 1
 		__m64 inptra0 = _mm_unpacklo_pi16(inptr[DCTSIZE*0 + 0],inptr[DCTSIZE*0 + 1]);
 		__m64 inptra1 = _mm_unpacklo_pi16(inptr[DCTSIZE*0 + 2],inptr[DCTSIZE*0 + 3]);
 		__m64 inptra = _mm_unpacklo_pi16(inptra0,inptra1);	
@@ -244,8 +248,24 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		inptrc = _mm_or_si64(inptrc,inptrg);
 		inptrb = _mm_or_si64(inptrb,inptrh);
 		inptrc = _mm_or_si64(inptrc,inptrb); 
+#endif
+		__m64 mm1 = get_m64_value(&inptr[DCTSIZE*1]);
+		__m64 mm2 = get_m64_value(&inptr[DCTSIZE*2]);
+		__m64 mm3 = get_m64_value(&inptr[DCTSIZE*3]);
+		mm1 = _mm_or_si64(mm1, mm3);
+		__m64 mm4 = get_m64_value(&inptr[DCTSIZE*4]);
+		mm2 = _mm_or_si64(mm2, mm4);
+		__m64 mm5 = get_m64_value(&inptr[DCTSIZE*5]);
+		mm1 = _mm_or_si64(mm1, mm5);
+		__m64 mm6 = get_m64_value(&inptr[DCTSIZE*6]);
+		mm2 = _mm_or_si64(mm2, mm6);
+		__m64 mm7 = get_m64_value(&inptr[DCTSIZE*7]);
+		mm1 = _mm_or_si64(mm1, mm7);
 
-		if (inptrb0 == 0 && inptrc == 0) {
+		mm1 = _mm_or_si64(mm1, mm2);
+
+		//if (inptrb0 == 0 && inptrc == 0) {
+		if (test_mm64_zero(mm1)) {
 			/* AC terms all zero */
 
 			__m64 inptra0 = _mm_unpacklo_pi16(inptr[DCTSIZE*0 + 0],inptr[DCTSIZE*0 + 1]);
