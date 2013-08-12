@@ -146,6 +146,18 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
 #define FIX_3_072711026  FIX(3.072711026)
 #endif
 
+#define PW_F130_F054    _mm_set_pi16(FIX_0_541, (FIX_0_541+FIX_0_765), FIX_0_541, (FIX_0_541+FIX_0_765))
+#define PW_F054_MF130   _mm_set_pi16((FIX_0_541-FIX_1_847), FIX_0_541, (FIX_0_541-FIX_1_847), FIX_0_541)
+#define PW_MF078_F117   _mm_set_pi16(FIX_1_175, (FIX_1_175-FIX_1_961), FIX_1_175, (FIX_1_175-FIX_1_961))
+#define PW_F117_F078    _mm_set_pi16((FIX_1_175-FIX_0_390), FIX_1_175, (FIX_1_175-FIX_0_390), FIX_1_175)
+#define PW_MF060_MF089  _mm_set_pi16(-FIX_0_899, (FIX_0_298-FIX_0_899), -FIX_0_899, (FIX_0_298-FIX_0_899))
+#define PW_MF089_F060   _mm_set_pi16((FIX_1_501-FIX_0_899), -FIX_0_899, (FIX_1_501-FIX_0_899), -FIX_0_899)
+#define PW_MF050_MF256  _mm_set_pi16(-FIX_2_562, (FIX_2_053-FIX_2_562), -FIX_2_562, (FIX_2_053-FIX_2_562))
+#define PW_MF256_F050   _mm_set_pi16((FIX_3_072-FIX_2_562), -FIX_2_562, (FIX_3_072-FIX_2_562), -FIX_2_562)
+#define PD_DESCALE_P1   _mm_set_pi32((1 << (DESCALE_P1-1)), (1 << (DESCALE_P1-1)))
+#define PD_DESCALE_P2   _mm_set_pi32((1 << (DESCALE_P2-1)), (1 << (DESCALE_P2-1)))
+#define PB_CENTERJSAMP  _mm_set_pi8(CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE)
+
 
 /* Multiply an INT32 variable by an INT32 constant to yield an INT32 result.
  *  * For 8-bit samples with the recommended scaling, all the variable
@@ -173,34 +185,36 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
  * Perform dequantization and inverse DCT on one block of coefficients.
  */
 
-#define get_m64_value(addr) (*(__m64 *)addr)
-#define test_m64_zero(mm64) (!(*(u64 *)&mm64))
+#define DEBUG_PASS1
+//#define get_m64_value(addr) (*(__m64 *)addr)
+#define test_m64_zero(mm64) (!(*(uint64_t *)&mm64))
 
 GLOBAL(void)
-jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
+jsimd_idct_islow_mmx (void * dct_table,
 		JCOEFPTR coef_block,
 		JSAMPARRAY output_buf, JDIMENSION output_col)
 {
 	__m64 tmp0,tmp1,tmp2,tmp3;
 	__m64 z2, z3, z4;
-	__m64 t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15,t16;
-	__m64 T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11;
 	JCOEFPTR inptr;
 	ISLOW_MULT_TYPE * quantptr;
-	__m64 *wsptr;
+	JCOEF *wsptr;
 	JSAMPROW outptr; //char类型指针 
-	int ctr,num;
-	__m64 workspace[DCTSIZE]; /* buffers data between passes缓冲区间数据转换 */
+	int ctr;
+	JCOEF workspace[DCTSIZE2]; /* buffers data between passes缓冲区间数据转换 */
 	SHIFT_TEMPS
 
 		/* Pass 1: process columns from input, store into work array. */
 		/* Note results are scaled up by sqrt(8) compared to a true IDCT; */
 		/* furthermore, we scale the results by 2**PASS1_BITS. */
-		inptr = coef_block;
-	quantptr = (ISLOW_MULT_TYPE *) compptr->dct_table;
+	inptr = coef_block;
+	quantptr = (ISLOW_MULT_TYPE *) dct_table;
 	wsptr = workspace;
 	//DCTSIZE == 8
-	for (ctr = (DCTSIZE >> 2); ctr > 0; ctr--) {
+	int loopsize = 4; //TODO: 4*sizeof(inptr[0]) = sizeof(__m64)
+	int loopcount = DCTSIZE / loopsize; //=2
+
+	for (ctr = loopcount; ctr > 0; ctr--) {
 		/* Due to quantization, we will usually find that many of the input
 		 * coefficients are zero, especially the AC terms.  We can exploit this
 		 * by short-circuiting the IDCT calculation for any column in which all
@@ -209,97 +223,70 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		 * With typical images and quantization tables, half or more of the
 		 * column DCT calculations can be simplified this way.
 		 */
-#if 1
-		__m64 inptra0 = _mm_unpacklo_pi16(inptr[DCTSIZE*0 + 0],inptr[DCTSIZE*0 + 1]);
-		__m64 inptra1 = _mm_unpacklo_pi16(inptr[DCTSIZE*0 + 2],inptr[DCTSIZE*0 + 3]);
-		__m64 inptra = _mm_unpacklo_pi16(inptra0,inptra1);	
-		__m64 inptrb0 = _mm_unpacklo_pi16(inptr[DCTSIZE*1 + 0],inptr[DCTSIZE*1 + 1]);
-		__m64 inptrb1 = _mm_unpacklo_pi16(inptr[DCTSIZE*1 + 2],inptr[DCTSIZE*1 + 3]);
-		__m64 inptrb = _mm_unpacklo_pi16(inptrb0,inptrb1);
-
-		__m64 inptrc0 = _mm_unpacklo_pi16(inptr[DCTSIZE*2 + 0],inptr[DCTSIZE*2 + 1]);
-		__m64 inptrc1 = _mm_unpacklo_pi16(inptr[DCTSIZE*2 + 2],inptr[DCTSIZE*2 + 3]);
-		__m64 inptrc = _mm_unpacklo_pi16(inptrc0,inptrc1);
-
-		__m64 inptrd0 = _mm_unpacklo_pi16(inptr[DCTSIZE*3 + 0],inptr[DCTSIZE*3 + 1]);
-		__m64 inptrd1 = _mm_unpacklo_pi16(inptr[DCTSIZE*3 + 2],inptr[DCTSIZE*3 + 3]);
-		__m64 inptrd = _mm_unpacklo_pi16(inptrd0,inptrd1);
-
-		__m64 inptre0 = _mm_unpacklo_pi16(inptr[DCTSIZE*4 + 0],inptr[DCTSIZE*4 + 1]);
-		__m64 inptre1 = _mm_unpacklo_pi16(inptr[DCTSIZE*4 + 2],inptr[DCTSIZE*4 + 3]);
-		__m64 inptre = _mm_unpacklo_pi16(inptre0,inptre1);
-
-		__m64 inptrf0 = _mm_unpacklo_pi16(inptr[DCTSIZE*5 + 0],inptr[DCTSIZE*5 + 1]);
-		__m64 inptrf1 = _mm_unpacklo_pi16(inptr[DCTSIZE*5 + 2],inptr[DCTSIZE*5 + 3]);
-		__m64 inptrf = _mm_unpacklo_pi16(inptrf0,inptrf1);
-
-		__m64 inptrg0 = _mm_unpacklo_pi16(inptr[DCTSIZE*6 + 0],inptr[DCTSIZE*6 + 1]);
-		__m64 inptrg1 = _mm_unpacklo_pi16(inptr[DCTSIZE*6 + 2],inptr[DCTSIZE*6 + 3]);
-		__m64 inptrg = _mm_unpacklo_pi16(inptrg0,inptrg1);
-
-		__m64 inptrh0 = _mm_unpacklo_pi16(inptr[DCTSIZE*7 + 0],inptr[DCTSIZE*7 + 1]);
-		__m64 inptrh1 = _mm_unpacklo_pi16(inptr[DCTSIZE*7 + 2],inptr[DCTSIZE*7 + 3]);
-		__m64 inptrh = _mm_unpacklo_pi16(inptrh0,inptrh1);
-
-		inptrb0 = _mm_or_si64(inptrb0,inptrc0);
-		inptrb = _mm_or_si64(inptrb,inptrd);
-		inptrc = _mm_or_si64(inptrc,inptre);
-		inptrb = _mm_or_si64(inptrb,inptrf);
-		inptrc = _mm_or_si64(inptrc,inptrg);
-		inptrb = _mm_or_si64(inptrb,inptrh);
-		inptrc = _mm_or_si64(inptrc,inptrb); 
-#endif
-		__m64 mm1 = get_m64_value(&inptr[DCTSIZE*1]);
-		__m64 mm2 = get_m64_value(&inptr[DCTSIZE*2]);
-		__m64 mm3 = get_m64_value(&inptr[DCTSIZE*3]);
-		mm1 = _mm_or_si64(mm1, mm3);
-		__m64 mm4 = get_m64_value(&inptr[DCTSIZE*4]);
-		mm2 = _mm_or_si64(mm2, mm4);
-		__m64 mm5 = get_m64_value(&inptr[DCTSIZE*5]);
-		mm1 = _mm_or_si64(mm1, mm5);
-		__m64 mm6 = get_m64_value(&inptr[DCTSIZE*6]);
-		mm2 = _mm_or_si64(mm2, mm6);
-		__m64 mm7 = get_m64_value(&inptr[DCTSIZE*7]);
-		mm1 = _mm_or_si64(mm1, mm7);
-
+		__m64 inptr0 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*0]); //???
+		__m64 inptr1 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*1]);
+		__m64 inptr2 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*2]);
+		__m64 inptr3 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*3]);
+		__m64 inptr4 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*4]);
+		__m64 inptr5 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*5]);
+		__m64 inptr6 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*6]);
+		__m64 inptr7 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*7]);
+		
+		__m64 mm1 = _mm_or_si64(inptr1, inptr3);
+		__m64 mm2 = _mm_or_si64(inptr2, inptr4);
+		mm1 = _mm_or_si64(mm1,inptr5 );
+		mm2 = _mm_or_si64(mm2,inptr6);
+		mm1 = _mm_or_si64(mm1,inptr7);
 		mm1 = _mm_or_si64(mm1, mm2);
 
-		//if (inptrb0 == 0 && inptrc == 0) {
-		if (test_mm64_zero(mm1)) {
+#ifdef DEBUG_PASS1
+    		printf("input:%d\n", ctr);
+    		printf("0x%16llx\n", to_uint64(inptr0));
+    		printf("0x%16llx\n", to_uint64(inptr1));
+    		printf("0x%16llx\n", to_uint64(inptr2));
+    		printf("0x%16llx\n", to_uint64(inptr3));
+    		printf("0x%16llx\n", to_uint64(inptr4));
+    		printf("0x%16llx\n", to_uint64(inptr5));
+    		printf("0x%16llx\n", to_uint64(inptr6));
+    		printf("0x%16llx\n", to_uint64(inptr7));
+#endif
+
+		if (test_m64_zero(mm1)) {
 			/* AC terms all zero */
+			__m64 dcval = _mm_load_si64((__m64 *)&inptr[DCTSIZE*0]);
+			__m64 quantptr0 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*0]);
+			
+			dcval = _mm_mullo_pi16(dcval, quantptr0);
+			dcval =  _mm_slli_pi16(dcval, (int64_t)PASS1_BITS);	//dcval=in0=(00 01 02 03)
+			
+			__m64 dcval1 = _mm_unpacklo_pi16(dcval, dcval);		//dcvalL=in0=(00 00 01 01)
+			__m64 dcval2 = _mm_unpackhi_pi16(dcval, dcval);		//dcvalL=in0=(02 02 03 03)
 
-			__m64 inptra0 = _mm_unpacklo_pi16(inptr[DCTSIZE*0 + 0],inptr[DCTSIZE*0 + 1]);
-			__m64 inptra1 = _mm_unpacklo_pi16(inptr[DCTSIZE*0 + 2],inptr[DCTSIZE*0 + 3]);
-			__m64 inptra = _mm_unpacklo_pi16(inptra0,inptra1);
+			dcval1 = _mm_unpacklo_pi32(dcval1, dcval1);	//dcvalL0=in0=(00 00 00 00)
+			dcval2 = _mm_unpackhi_pi32(dcval1, dcval1);	//dcvalL1=in0=(01 01 01 01)
+			__m64 dcval3 = _mm_unpacklo_pi32(dcval2, dcval2);	//dcvalH0=in0=(02 02 02 02)
+			__m64 dcval4 = _mm_unpackhi_pi32(dcval2, dcval2);	//dcvalH1=in0=(03 03 03 03)
+			
+			_mm_store_si64((__m64 *)&wsptr[DCTSIZE*0], dcval1);
+			_mm_store_si64((__m64 *)&wsptr[DCTSIZE*0 + loopsize], dcval1);
+			_mm_store_si64((__m64 *)&wsptr[DCTSIZE*1],dcval2);
+			_mm_store_si64((__m64 *)&wsptr[DCTSIZE*1 + loopsize], dcval2);
+			_mm_store_si64((__m64 *)&wsptr[DCTSIZE*2],dcval3);
+			_mm_store_si64((__m64 *)&wsptr[DCTSIZE*2 + loopsize], dcval3);
+			_mm_store_si64((__m64 *)&wsptr[DCTSIZE*3],dcval4);
+			_mm_store_si64((__m64 *)&wsptr[DCTSIZE*3 + loopsize], dcval4);
 
-			__m64 quantptra0 = _mm_unpacklo_pi16(quantptr[DCTSIZE*0 + 0],quantptr[DCTSIZE*0 + 1]);
-			__m64 quantptra1 = _mm_unpacklo_pi16(quantptr[DCTSIZE*0 + 2],quantptr[DCTSIZE*0 + 3]);
-			__m64 quantptra = _mm_unpacklo_pi16(quantptra0,quantptra1);       	
-			__m64 dcval0 = _mm_mullo_pi16(quantptra,inptra);
-			__m64 dcval = _mm_slli_pi16(dcval0,PASS1_BITS);		//dcval=in0=(00 01 02 03) 
-
-			__m64 dcvalL = _mm_unpacklo_pi16(dcval,dcval);		//dcvalL=in0=(00 01 01 01)
-			__m64 dcvalH = _mm_unpackhi_pi16(dcval,dcval);		//dcvalL=in0=(02 02 03 03)
-
-			__m64 dcvalLL = _mm_unpacklo_pi32(dcvalL,dcvalL);	//dcvalL0=in0=(00 00 00 00)
-			__m64 dcvalLH = _mm_unpackhi_pi32(dcvalL,dcvalL);	//dcvalL1=in0=(01 01 01 01)
-			__m64 dcvalHL = _mm_unpacklo_pi32(dcvalH,dcvalH);	//dcvalH0=in0=(02 02 02 02)
-			__m64 dcvalHH = _mm_unpackhi_pi32(dcvalH,dcvalH);	//dcvalH1=in0=(03 03 03 03)
-
-			for (num = 0; num++; num <= ((DCTSIZE >> 1) -1)) {
-				wsptr[DCTSIZE*0 + num] = _mm_extract_pi16(dcvalLL,(int64_t) num);
-				wsptr[DCTSIZE*1 + num] = _mm_extract_pi16(dcvalLL,(int64_t) num);
-				wsptr[DCTSIZE*2 + num] = _mm_extract_pi16(dcvalLH,(int64_t) num);
-				wsptr[DCTSIZE*3 + num] = _mm_extract_pi16(dcvalLH,(int64_t) num);
-				wsptr[DCTSIZE*4 + num] = _mm_extract_pi16(dcvalHL,(int64_t) num);
-				wsptr[DCTSIZE*5 + num] = _mm_extract_pi16(dcvalHL,(int64_t) num);
-				wsptr[DCTSIZE*6 + num] = _mm_extract_pi16(dcvalHH,(int64_t) num);
-				wsptr[DCTSIZE*7 + num] = _mm_extract_pi16(dcvalHH,(int64_t) num);
-			}	
-
-			inptr += (DCTSIZE >> 1);			/* advance pointers to next column */
-			quantptr += (DCTSIZE >> 1);
-			wsptr += (DCTSIZE >> 1);
+#ifdef DEBUG_PASS1
+    			printf("wsptr1:%d\n", ctr);
+    			printf("0x%16llx 0x%16llx\n", to_uint64(dcval1), to_uint64(dcval1));
+    			printf("0x%16llx 0x%16llx\n", to_uint64(dcval2), to_uint64(dcval2));
+    			printf("0x%16llx 0x%16llx\n", to_uint64(dcval3), to_uint64(dcval3));
+    			printf("0x%16llx 0x%16llx\n", to_uint64(dcval4), to_uint64(dcval4));
+#endif
+			
+			inptr += loopsize;			/* advance pointers to next column */
+			quantptr += loopsize;
+			wsptr += loopsize;
 			continue;
 		}
 
@@ -315,64 +302,32 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		 * tmp2 = z2 * 0.541196100 + z3 * (0.541196100 - 1.847759065);
 		 * tmp3 = z2 * (0.541196100 + 0.765366865) + z3 * 0.541196100;
 		 */
+		__m64 quantptr0 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*0]);
+		__m64 quantptr2 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*2]);
+		__m64 quantptr4 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*4]);
+		__m64 quantptr6 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*6]);
 
-		__m64 quantptra0 = _mm_unpacklo_pi16(quantptr[DCTSIZE*1 + 0],quantptr[DCTSIZE*1 + 1]);
-		__m64 quantptra1 = _mm_unpacklo_pi16(quantptr[DCTSIZE*1 + 2],quantptr[DCTSIZE*1 + 3]);
-		__m64 quantptra = _mm_unpacklo_pi16(quantptra0,quantptra1);
-		__m64 dcval0 = _mm_mullo_pi16(quantptra,inptra);
+		__m64 z2 = _mm_mullo_pi16(inptr2, quantptr2);
+		__m64 z3 = _mm_mullo_pi16(inptr6, quantptr6);
+		
+		__m64 tmplo = _mm_unpacklo_pi16(z2, z3);
+		__m64 tmphi = _mm_unpackhi_pi16(z2, z3);
+		__m64 tmp3L = _mm_madd_pi16(tmplo, PW_F130_F054);	//get the tmp3L
+		__m64 tmp3H = _mm_madd_pi16(tmphi, PW_F130_F054);	//get the tmp3H
+		__m64 tmp2L = _mm_madd_pi16(tmplo, PW_F054_MF130);	//get the tmp2L
+		__m64 tmp2H = _mm_madd_pi16(tmphi, PW_F054_MF130);	//get the tmp2H
 
-		__m64 quantptrc0 = _mm_unpacklo_pi16(quantptr[DCTSIZE*2 + 0],quantptr[DCTSIZE*2 + 1]);
-		__m64 quantptrc1 = _mm_unpacklo_pi16(quantptr[DCTSIZE*2 + 2],quantptr[DCTSIZE*2 + 3]);
-		__m64 quantptrc = _mm_unpacklo_pi16(quantptrc0,quantptrc1);	
-		__m64 dcval2 = _mm_mullo_pi16(quantptrc,inptrc);
+		z2 = _mm_mullo_pi16(inptr0, quantptr0);
+		z3 = _mm_mullo_pi16(inptr4, quantptr4);
 
-		__m64 quantptre0 = _mm_unpacklo_pi16(quantptr[DCTSIZE*4 + 0],quantptr[DCTSIZE*4 + 1]);
-		__m64 quantptre1 = _mm_unpacklo_pi16(quantptr[DCTSIZE*4 + 2],quantptr[DCTSIZE*4 + 3]);
-		__m64 quantptre = _mm_unpacklo_pi16(quantptre0,quantptre1);	
-		__m64 dcval4= _mm_mullo_pi16(quantptre,inptre);
+		__m64 z23a = _mm_add_pi16(z2, z3);
+		__m64 z23s = _mm_sub_pi16(z2, z3);
 
-		__m64 quantptrg0 = _mm_unpacklo_pi16(quantptr[DCTSIZE*6 + 0],quantptr[DCTSIZE*6 + 1]);
-		__m64 quantptrg1 = _mm_unpacklo_pi16(quantptr[DCTSIZE*6 + 2],quantptr[DCTSIZE*6 + 3]);
-		__m64 quantptrg = _mm_unpacklo_pi16(quantptrg0,quantptrg1);	
-		__m64 dcval6 = _mm_mullo_pi16(quantptrg,inptrg);
+		__m64 tmp0L = _mm_loadlo_pi16_f(z23a);	
+		__m64 tmp0H = _mm_loadhi_pi16_f(z23a);	
 
-		// (0,0,0,FIX_0_541) (00 00 00 00 ) --> (FIX_0_541，FIX_0_5410，FIX_0_541，FIX_0_541)
-		//	--> (FIX_0_541，0，FIX_0_541，0)
-		t1 = _mm_shuffle_pi16((__m64) FIX_0_541,_mm_setzero_si64());
-		t4 = _mm_loadlo_pi16(t1);
-		//	(0,0,0,FIX_0_541+FIX_0_765) (00 00 00 00 ) --> (FIX_0_541+FIX_0_765,FIX_0_541+FIX_0_765,FIX_0_541+FIX_0_765，FIX_0_541+FIX_0_765)
-		//						   --> (0,FIX_0_541+FIX_0_765,0，FIX_0_541+FIX_0_765)
-		t2 = _mm_shuffle_pi16((__m64) (FIX_0_541 + FIX_0_765),_mm_setzero_si64());
-		t2 = _mm_loadlo_pi16_f(t2);
-		T1 = _mm_add_pi16(t4,t2);
-		// (0,0,0,FIX_0_541 - FIX_1_847) (00 00 00 00 ) --> (FIX_0_541 - FIX_1_847，FIX_0_541 - FIX_1_847，FIX_0_541 - FIX_1_847)
-		//                                  --> (FIX_0_541 - FIX_1_847，0，FIX_0_541 - FIX_1_847，0)
-		t3 = _mm_shuffle_pi16((__m64) (FIX_0_541 - FIX_1_847),_mm_setzero_si64());
-		t3 = _mm_loadlo_pi16(t3);
-		t4 = _mm_loadlo_pi16_f(t1);
-		T2 = _mm_add_pi16(t3,t4);
-
-		z2 = dcval2;
-		z3 = dcval6;
-		__m64 z23L = _mm_unpacklo_pi16(z2,z3);
-		__m64 z23H = _mm_unpackhi_pi16(z2,z3);
-
-		__m64 tmp3L = _mm_madd_pi16(z23L,T1);	//tmp3L
-		__m64 tmp3H = _mm_madd_pi16(z23H,T1);	//tmp3H	
-
-		__m64 tmp2L = _mm_madd_pi16(z23L,T2);	//tmp2L
-		__m64 tmp2H = _mm_madd_pi16(z23H,T2);	//tmp2H
-
-		z2 = dcval0;
-		z3 = dcval4;
-		__m64 z23a = _mm_add_si64(z2,z3);
-		__m64 z23s = _mm_sub_si64(z2,z3);
-
-		__m64 tmp0L = _mm_loadlo_pi16(z23a);	//tmp0L
-		__m64 tmp0H = _mm_loadhi_pi16(z23a);	//tmp0H
-
-		tmp0L = _mm_srai_pi32(tmp0L,(16-CONST_BITS));	//tmp0L
-		tmp0H = _mm_srai_pi32(tmp0H,(16-CONST_BITS));	//tmp0H
+		tmp0L = _mm_srai_pi32(tmp0L, (16-CONST_BITS));	//get the tmp0L
+		tmp0H = _mm_srai_pi32(tmp0H, (16-CONST_BITS));	//get the tmp0H
 
 		__m64 tmp10L = _mm_add_pi32(tmp0L,tmp3L);	//tmp10L
 		__m64 tmp13L = _mm_sub_pi32(tmp0L,tmp3L);	//tmp13L
@@ -380,11 +335,11 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		__m64 tmp10H = _mm_add_pi32(tmp0H,tmp3H);	//tmp10H
 		__m64 tmp13H = _mm_sub_pi32(tmp0H,tmp3H);	//tmp13H
 
-		__m64 tmp1L = _mm_loadlo_pi16(z23s);	//tmp1L
-		__m64 tmp1H = _mm_loadhi_pi16(z23s);	//tmp1H
+		__m64 tmp1L = _mm_loadlo_pi16_f(z23s);
+		__m64 tmp1H = _mm_loadhi_pi16_f(z23s);
 
-		tmp1L = _mm_srai_pi32(tmp1L,(16-CONST_BITS));	//tmp1L
-		tmp1H = _mm_srai_pi32(tmp1H,(16-CONST_BITS));	//tmp2H
+		tmp1L = _mm_srai_pi32(tmp1L, (16-CONST_BITS));	//tmp1L
+		tmp1H = _mm_srai_pi32(tmp1H, (16-CONST_BITS));	//tmp2H
 
 		__m64 tmp11L = _mm_add_pi32(tmp1L,tmp2L);	//tmp11L
 		__m64 tmp12L = _mm_sub_pi32(tmp1L,tmp2L);	//tmp12L
@@ -392,34 +347,20 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		__m64 tmp11H = _mm_add_pi32(tmp1H,tmp2H);	//tmp11H
 		__m64 tmp12H = _mm_sub_pi32(tmp1H,tmp2H);	//tmp12H
 
+		//TODO: store tmp11L and so on
+
 		/* Odd part per figure 8; the matrix is unitary and hence its
 		 * transpose is its inverse.  i0..i3 are y7,y5,y3,y1 respectively.
 		 */	
+		__m64 quantptr1 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*1]);
+		__m64 quantptr3 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*3]);
+		__m64 quantptr5 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*5]);
+		__m64 quantptr7 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*7]);
 
-		__m64 quantptrh0 = _mm_unpacklo_pi16(quantptr[DCTSIZE*7 + 0],quantptr[DCTSIZE*7 + 1]);
-		__m64 quantptrh1 = _mm_unpacklo_pi16(quantptr[DCTSIZE*7 + 2],quantptr[DCTSIZE*7 + 3]);
-		__m64 quantptrh = _mm_unpacklo_pi16(quantptrh0,quantptrh1);	
-		__m64 dcval7 = _mm_mullo_pi16(quantptrh,inptrh);
-
-		__m64 quantptrf0 = _mm_unpacklo_pi16(quantptr[DCTSIZE*5 + 0],quantptr[DCTSIZE*5 + 1]);
-		__m64 quantptrf1 = _mm_unpacklo_pi16(quantptr[DCTSIZE*5 + 2],quantptr[DCTSIZE*5 + 3]);
-		__m64 quantptrf = _mm_unpacklo_pi16(quantptrf0,quantptrf1);	
-		__m64 dcval5= _mm_mullo_pi16(quantptrf,inptrf);
-
-		__m64 quantptrd0 = _mm_unpacklo_pi16(quantptr[DCTSIZE*3 + 0],quantptr[DCTSIZE*3 + 1]);
-		__m64 quantptrd1 = _mm_unpacklo_pi16(quantptr[DCTSIZE*3 + 2],quantptr[DCTSIZE*3 + 3]);
-		__m64 quantptrd = _mm_unpacklo_pi16(quantptrd0,quantptrd1);	
-		__m64 dcval3 = _mm_mullo_pi16(quantptrd,inptrd);
-
-		__m64 quantptrb0 = _mm_unpacklo_pi16(quantptr[DCTSIZE*1 + 0],quantptr[DCTSIZE*1 + 1]);
-		__m64 quantptrb1 = _mm_unpacklo_pi16(quantptr[DCTSIZE*1 + 2],quantptr[DCTSIZE*1 + 3]);
-		__m64 quantptrb = _mm_unpacklo_pi16(quantptrb0,quantptrb1);	
-		__m64 dcval1 = _mm_mullo_pi16(quantptrb,inptrb);
-
-		tmp0 = dcval7;
-		tmp1 = dcval5;
-		tmp2 = dcval3;
-		tmp3 = dcval1;
+		tmp0 = _mm_mullo_pi16(inptr7, quantptr7);
+		tmp1 = _mm_mullo_pi16(inptr5, quantptr5);
+		tmp2 = _mm_mullo_pi16(inptr3, quantptr3);
+		tmp3 = _mm_mullo_pi16(inptr1, quantptr1);
 
 		z3 = _mm_add_pi16(tmp0,tmp2);
 		z4 = _mm_add_pi16(tmp1,tmp3);
@@ -432,29 +373,16 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		 * (This implementation)
 		 * z3 = z3 * (1.175875602 - 1.961570560) + z4 * 1.175875602;
 		 * z4 = z3 * 1.175875602 + z4 * (1.175875602 - 0.390180644);
-		 */
-		t5 = _mm_shuffle_pi16((__m64) FIX_1_175,_mm_setzero_si64());
-		t8 = _mm_loadlo_pi16(t5);
+		 */	
+		tmplo = _mm_unpacklo_pi16(z3, z4);
+		tmphi = _mm_unpackhi_pi16(z3, z4);
+		__m64 z3L = _mm_madd_pi16(tmplo, PW_MF078_F117);	//get the z3L
+		__m64 z3H = _mm_madd_pi16(tmphi, PW_MF078_F117);	//get the z3H
+		__m64 z4L = _mm_madd_pi16(tmplo, PW_F117_F078);	//get the z4L
+		__m64 z4H = _mm_madd_pi16(tmphi, PW_F117_F078);	//get the z4H
 
-		t6 = _mm_shuffle_pi16((__m64) (FIX_1_175 - FIX_1_961),_mm_setzero_si64());
-		t6 = _mm_loadlo_pi16_f(t6);
-
-		T3 = _mm_add_pi16(t8,t6);
-
-		t7 = _mm_shuffle_pi16((__m64) (FIX_1_175 - FIX_0_390),_mm_setzero_si64());
-		t7 = _mm_loadlo_pi16(t7);
-		t8 = _mm_loadlo_pi16_f(t5);
-
-		T4 = _mm_add_pi16(t7,t8);
-
-		__m64 z34L = _mm_unpacklo_pi16(z3,z4);
-		__m64 z34H = _mm_unpackhi_pi16(z3,z4);
-
-		__m64 z3L = _mm_madd_pi16(z34L,T3);
-		__m64 z3H = _mm_madd_pi16(z34H,T3);
-
-		__m64 z4L = _mm_madd_pi16(z34L,T4);
-		__m64 z4H = _mm_madd_pi16(z34H,T4);
+		//TODO: store z3L and z3H
+		
 		/*
 		 * (Original)
 		 * z1 = tmp0 + tmp3;  z2 = tmp1 + tmp2;
@@ -472,81 +400,53 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		 * tmp0 += z3;  tmp1 += z4;
 		 * tmp2 += z3;  tmp3 += z4;
 		 */
-		t9 = _mm_shuffle_pi16((__m64) -FIX_0_899,_mm_setzero_si64());
-		t12 = _mm_loadlo_pi16(t9);
+		tmplo = _mm_unpacklo_pi16(tmp0,tmp3);
+		tmphi = _mm_unpackhi_pi16(tmp0,tmp3);
 
-		t10 = _mm_shuffle_pi16((__m64) (FIX_0_298 - FIX_0_899),_mm_setzero_si64());
-		t10 = _mm_loadlo_pi16_f(t10);
+		tmp0L = _mm_madd_pi16(tmplo, PW_MF060_MF089);
+		tmp0H = _mm_madd_pi16(tmphi, PW_MF060_MF089);
+		tmp3L = _mm_madd_pi16(tmplo, PW_MF089_F060);
+		tmp3H = _mm_madd_pi16(tmphi, PW_MF089_F060);   	
 
-		T5 = _mm_add_pi16(t12,t10);
+		tmp0L =  _mm_add_pi32(tmp0L, z3L);	//tmp0L
+		tmp0H = _mm_add_pi32(tmp0H, z3H); 	//tmp0H
+		tmp3L =  _mm_add_pi32(tmp3L, z4L);	//tmp3L
+		tmp3H = _mm_add_pi32(tmp3H, z4H);	//tmp3H
+		//TODO: store tmp0L and so on
 
-		t11 = _mm_shuffle_pi16((__m64) (FIX_1_501 - FIX_0_899),_mm_setzero_si64());
-		t11 = _mm_loadlo_pi16(t11);
-		t12 = _mm_loadlo_pi16_f(t9);
+		tmplo = _mm_unpacklo_pi16(tmp1,tmp2);
+		tmphi = _mm_unpackhi_pi16(tmp1,tmp2);
 
-		T6 = _mm_add_pi16(t11,t12);
+		tmp1L = _mm_madd_pi16(tmplo, PW_MF050_MF256);
+		tmp1H = _mm_madd_pi16(tmphi, PW_MF050_MF256);
 
-		__m64 tmp03L = _mm_unpacklo_pi16(tmp0,tmp3);
-		__m64 tmp03H = _mm_unpackhi_pi16(tmp0,tmp3);
+		tmp2L = _mm_madd_pi16(tmplo, PW_MF256_F050);
+		tmp2H = _mm_madd_pi16(tmphi, PW_MF256_F050);
 
-		tmp0L = _mm_madd_pi16(tmp03L,T5);
-		tmp0H = _mm_madd_pi16(tmp03H,T5);
-
-		tmp3L = _mm_madd_pi16(tmp03L,T6);
-		tmp3H = _mm_madd_pi16(tmp03H,T6);   	
-
-		tmp0L =  _mm_add_pi32(tmp0L,z3L);
-		tmp0H = _mm_add_pi32(tmp0H,z3H);
-		tmp3L =  _mm_add_pi32(tmp0L,z4L);
-		tmp3H = _mm_add_pi32(tmp0H,z4H);
-		//
-		t13 = _mm_shuffle_pi16((__m64) -FIX_2_562,_mm_setzero_si64());
-		t16 = _mm_loadlo_pi16(t13);
-
-		t14 = _mm_shuffle_pi16((__m64) (FIX_2_053 - FIX_2_562),_mm_setzero_si64());
-		t14 = _mm_loadlo_pi16_f(t14);
-
-		T7 = _mm_add_pi16(t16,t14);
-
-		t15 = _mm_shuffle_pi16((__m64) (FIX_3_072 - FIX_2_562),_mm_setzero_si64());
-		t15 = _mm_loadlo_pi16(t15);
-		t16 = _mm_loadlo_pi16_f(t13);
-
-		T8 = _mm_add_pi16(t15,t16);
-
-		tmp12L = _mm_unpacklo_pi16(tmp1,tmp2);
-		tmp12H = _mm_unpackhi_pi16(tmp1,tmp2);
-
-		tmp1L = _mm_madd_pi16(tmp12L,T5);
-		tmp1H = _mm_madd_pi16(tmp12H,T5);
-
-		tmp2L = _mm_madd_pi16(tmp12L,T6);
-		tmp2H = _mm_madd_pi16(tmp12H,T6);
-
-		tmp1L = _mm_add_pi32(tmp1L,z4L);
-		tmp1H = _mm_add_pi32(tmp1H,z4H);
-		tmp2L = _mm_add_pi32(tmp2L,z3L);
-		tmp2H = _mm_add_pi32(tmp2H,z3H);
+		tmp1L = _mm_add_pi32(tmp1L, z4L);	//tmp1L
+		tmp1H = _mm_add_pi32(tmp1H, z4H);	//tmp1H
+		tmp2L = _mm_add_pi32(tmp2L, z3L);	//tmp2L
+		tmp2H = _mm_add_pi32(tmp2H, z3H);	//tmp2H
+		//TODO: store tmp1L and so on
 
 		/* Final output stage: inputs are tmp10..tmp13, tmp0..tmp3 */
-
-		T9 = _mm_set1_pi32(PD_DECALE_P1);//[PD_DECALE_P1,PD_DECALE_P1]
 
 		__m64 data0L = _mm_add_pi32(tmp10L,tmp3L);  //data0L
 		__m64 data0H = _mm_add_pi32(tmp10H,tmp3H);  //data0H
 		__m64 data7L = _mm_sub_pi32(tmp10L,tmp3L);  //data7L
 		__m64 data7H = _mm_sub_pi32(tmp10H,tmp3H);  //data7H
 
-		data0L = _mm_add_pi32(data0L,T9);
-		data0H = _mm_add_pi32(data0H,T9);	
-		data0L = _mm_srai_pi32(data0L,DESCALE_P1);
-		data0H = _mm_srai_pi32(data0H,DESCALE_P1);
+		data0L = _mm_add_pi32(data0L, PD_DESCALE_P1);
+		data0H = _mm_add_pi32(data0H, PD_DESCALE_P1);	
+		data0L = _mm_srai_pi32(data0L, DESCALE_P1);
+		data0H = _mm_srai_pi32(data0H, DESCALE_P1);
 
-		data7L = _mm_add_pi32(data7L,T9);
-		data7H = _mm_add_pi32(data7H,T9);
-		data7L = _mm_srai_pi32(data7L,DESCALE_P1);
-		data7H = _mm_srai_pi32(data7H,DESCALE_P1);
+		data7L = _mm_add_pi32(data7L, PD_DESCALE_P1);
+		data7H = _mm_add_pi32(data7H, PD_DESCALE_P1);
+		data7L = _mm_srai_pi32(data7L, DESCALE_P1);
+		data7H = _mm_srai_pi32(data7H, DESCALE_P1);
 
+		//merge
 		__m64 data0 = _mm_packs_pi32(data0L,data0H);  //data0 =(00 01 02 03)
 		__m64 data7 = _mm_packs_pi32(data7L,data7H);  //data7 =(70 71 72 73)
 
@@ -555,15 +455,15 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		__m64 data6L = _mm_sub_pi32(tmp11L,tmp2L);  //data6L
 		__m64 data6H = _mm_sub_pi32(tmp11H,tmp2H);  //data6H
 
-		data1L = _mm_add_pi32(data1L,T9);
-		data1H = _mm_add_pi32(data1H,T9);
-		data1L = _mm_srai_pi32(data1L,DESCALE_P1);
-		data1H = _mm_srai_pi32(data1H,DESCALE_P1);
+		data1L = _mm_add_pi32(data1L, PD_DESCALE_P1);
+		data1H = _mm_add_pi32(data1H, PD_DESCALE_P1);
+		data1L = _mm_srai_pi32(data1L, DESCALE_P1);
+		data1H = _mm_srai_pi32(data1H, DESCALE_P1);
 
-		data6L = _mm_add_pi32(data6L,T9);
-		data6H = _mm_add_pi32(data6H,T9);
-		data6L = _mm_srai_pi32(data6L,DESCALE_P1);
-		data6H = _mm_srai_pi32(data6H,DESCALE_P1);
+		data6L = _mm_add_pi32(data6L, PD_DESCALE_P1);
+		data6H = _mm_add_pi32(data6H, PD_DESCALE_P1);
+		data6L = _mm_srai_pi32(data6L, DESCALE_P1);
+		data6H = _mm_srai_pi32(data6H, DESCALE_P1);
 
 		__m64 data1 = _mm_packs_pi32(data1L,data1H);  //data1 =(10 11 12 13)
 		__m64 data6 = _mm_packs_pi32(data6L,data6H);  //data6 =(60 61 62 63)
@@ -578,15 +478,15 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		__m64 data5L = _mm_sub_pi32(tmp12L,tmp1L);  //data5L
 		__m64 data5H = _mm_sub_pi32(tmp12H,tmp1H);  //data5H
 
-		data2L = _mm_add_pi32(data2L,T9);
-		data2H = _mm_add_pi32(data2H,T9);
-		data2L = _mm_srai_pi32(data2L,DESCALE_P1);
-		data2H = _mm_srai_pi32(data2H,DESCALE_P1);
+		data2L = _mm_add_pi32(data2L, PD_DESCALE_P1);
+		data2H = _mm_add_pi32(data2H, PD_DESCALE_P1);
+		data2L = _mm_srai_pi32(data2L, DESCALE_P1);
+		data2H = _mm_srai_pi32(data2H, DESCALE_P1);
 
-		data5L = _mm_add_pi32(data5L,T9);
-		data5H = _mm_add_pi32(data5H,T9);
-		data5L = _mm_srai_pi32(data5L,DESCALE_P1);
-		data5H = _mm_srai_pi32(data5H,DESCALE_P1);
+		data5L = _mm_add_pi32(data5L, PD_DESCALE_P1);
+		data5H = _mm_add_pi32(data5H, PD_DESCALE_P1);
+		data5L = _mm_srai_pi32(data5L, DESCALE_P1);
+		data5H = _mm_srai_pi32(data5H, DESCALE_P1);
 
 		__m64 data2 = _mm_packs_pi32(data2L,data2H);  //data2 =(20 21 22 23)
 		__m64 data5 = _mm_packs_pi32(data5L,data5H);  //data5 =(50 51 52 53)
@@ -597,15 +497,15 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		__m64 data4L = _mm_sub_pi32(tmp13L,tmp0L);  //data4L
 		__m64 data4H = _mm_sub_pi32(tmp13H,tmp0H);  //data4H
 
-		data3L = _mm_add_pi32(data3L,T9);
-		data3H = _mm_add_pi32(data3H,T9);
-		data3L = _mm_srai_pi32(data3L,DESCALE_P1);
-		data3H = _mm_srai_pi32(data3H,DESCALE_P1);
+		data3L = _mm_add_pi32(data3L, PD_DESCALE_P1);
+		data3H = _mm_add_pi32(data3H, PD_DESCALE_P1);
+		data3L = _mm_srai_pi32(data3L, DESCALE_P1);
+		data3H = _mm_srai_pi32(data3H, DESCALE_P1);
 
-		data4L = _mm_add_pi32(data4L,T9);
-		data4H = _mm_add_pi32(data4H,T9);
-		data4L = _mm_srai_pi32(data4L,DESCALE_P1);
-		data4H = _mm_srai_pi32(data4H,DESCALE_P1);
+		data4L = _mm_add_pi32(data4L, PD_DESCALE_P1);
+		data4H = _mm_add_pi32(data4H, PD_DESCALE_P1);
+		data4L = _mm_srai_pi32(data4L, DESCALE_P1);
+		data4H = _mm_srai_pi32(data4H, DESCALE_P1);
 
 		__m64 data3 = _mm_packs_pi32(data3L,data3H);  //data3 =(30 31 32 33)
 		__m64 data4 = _mm_packs_pi32(data4L,data4H);  //data4 =(40 41 42 43)
@@ -621,7 +521,7 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		__m64 data0123LH = _mm_unpackhi_pi32(data01L,data23L); //(01 11 21 31)
 		//data01H = (02 12 03 13) punpcklwd data23H = (22 32 23 33)
 		//data01H = (02 12 03 13) punpckhwd data23H = (22 32 23 33)
-		__m64 data0123HL = _mm_unpacklo_pi32(data01L,data23L); //(02 12 22 32)
+		__m64 data0123HL = _mm_unpacklo_pi32(data01H,data23H); //(02 12 22 32)
 		__m64 data0123HH = _mm_unpackhi_pi32(data01H,data23H); //(03 13 23 33)
 
 		//data45L = (40 50 41 51) punpcklwd data67L = (60 70 61 71)
@@ -630,36 +530,40 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		__m64 data4567LH = _mm_unpackhi_pi32(data45L,data67L); //(41 51 61 71)
 		//data45H = (42 52 43 53) punpcklwd data67H = (62 72 63 73)
 		//data45H = (42 52 43 53) punpckhwd data67H = (62 72 63 73) 
-		__m64 data4567HL = _mm_unpacklo_pi32(data45L,data67L); //(42 52 62 72)
+		__m64 data4567HL = _mm_unpacklo_pi32(data45H,data67H); //(42 52 62 72)
 		__m64 data4567HH = _mm_unpackhi_pi32(data45H,data67H); //(43 53 63 73)
-		/* wsptr[DCTSIZE*0 + 0] = (00 00 00 00)	wsptr[DCTSIZE*0 + 1] = (00 00 00 10) ...
-		   wsptr[DCTSIZE*1 + 0] = (00 00 00 40) wsptr[DCTSIZE*1 + 1] = (00 00 00 50) ...
-		   wsptr[DCTSIZE*2 + 0] = (00 00 00 01) wsptr[DCTSIZE*2 + 1] = (00 00 00 11) ...
-		   wsptr[DCTSIZE*3 + 0] = (00 00 00 41) wsptr[DCTSIZE*3 + 1] = (00 00 00 51) ...
-		   wsptr[DCTSIZE*4 + 0] = (00 00 00 02) wsptr[DCTSIZE*4 + 1] = (00 00 00 12) ...
-		   wsptr[DCTSIZE*5 + 0] = (00 00 00 42) wsptr[DCTSIZE*5 + 1] = (00 00 00 52) ...
-		   wsptr[DCTSIZE*6 + 0] = (00 00 00 03) wsptr[DCTSIZE*6 + 1] = (00 00 00 13) ...
-		   wsptr[DCTSIZE*7 + 0] = (00 00 00 43)	wsptr[DCTSIZE*7 + 1] = (00 00 00 53) ...
-		   */
-		for(num = 0;num++;num <= ((DCTSIZE >> 1) -1)){
-			wsptr[DCTSIZE*0 + num] = _mm_extract_pi16(data0123LL,(int64_t) num);
-			wsptr[DCTSIZE*1 + num] = _mm_extract_pi16(data4567LL,(int64_t) num);
-			wsptr[DCTSIZE*2 + num] = _mm_extract_pi16(data0123LH,(int64_t) num);
-			wsptr[DCTSIZE*3 + num] = _mm_extract_pi16(data4567LH,(int64_t) num);
-			wsptr[DCTSIZE*4 + num] = _mm_extract_pi16(data0123HL,(int64_t) num);
-			wsptr[DCTSIZE*5 + num] = _mm_extract_pi16(data4567HL,(int64_t) num);
-			wsptr[DCTSIZE*6 + num] = _mm_extract_pi16(data0123HH,(int64_t) num);
-			wsptr[DCTSIZE*7 + num] = _mm_extract_pi16(data4567HH,(int64_t) num);
-		}
-		inptr += (DCTSIZE >> 1);			/* advance pointers to next column */
-		quantptr += (DCTSIZE >> 1);
-		wsptr += (DCTSIZE >> 1);
+		
+		_mm_store_si64(&wsptr[DCTSIZE*0], data0123LL);			//wsptr[DCTSIZE*0 + 0/1/2/3] = (00 10 20 30)	
+		_mm_store_si64(&wsptr[DCTSIZE*0 + loopsize], data4567LL);	//wsptr[DCTSIZE*1 + 0/1/2/3] = (40 50 60 70)	
+		_mm_store_si64(&wsptr[DCTSIZE*1], data0123LH);			//wsptr[DCTSIZE*2 + 0/1/2/3] = (01 11 21 31)	
+		_mm_store_si64(&wsptr[DCTSIZE*1 + loopsize], data4567LH);	//wsptr[DCTSIZE*3 + 0/1/2/3] = (41 51 61 71)	
+		_mm_store_si64(&wsptr[DCTSIZE*2], data0123HL);			//wsptr[DCTSIZE*4 + 0/1/2/3] = (02 12 22 32)	
+		_mm_store_si64(&wsptr[DCTSIZE*2 + loopsize], data4567HL);	//wsptr[DCTSIZE*5 + 0/1/2/3] = (42 52 62 72)	
+		_mm_store_si64(&wsptr[DCTSIZE*3], data0123HH);			//wsptr[DCTSIZE*6 + 0/1/2/3] = (03 13 23 33)	
+		_mm_store_si64(&wsptr[DCTSIZE*3 + loopsize], data4567HH);	//wsptr[DCTSIZE*7 + 0/1/2/3] = (43 53 63 73)	
+
+#ifdef DEBUG_PASS1
+    		printf("wsptr2:%d\n", ctr);
+    		printf("0x%16llx 0x%16llx\n", to_uint64(data0123LL), to_uint64(data4567LL));
+    		printf("0x%16llx 0x%16llx\n", to_uint64(data0123LH), to_uint64(data4567LH));
+    		printf("0x%16llx 0x%16llx\n", to_uint64(data0123HL), to_uint64(data4567HL));
+    		printf("0x%16llx 0x%16llx\n\n", to_uint64(data0123HH), to_uint64(data4567HH));
+#endif
+		
+		inptr += loopsize;			/* advance pointers to next column */
+		quantptr += loopsize;
+		wsptr += loopsize;
 	}
+
+#ifdef DEBUG_PASS1
+	while(1);
+#endif
 
 	/* Pass 2: process rows from work array, store into output array. */
 	/* Note that we must descale the results by a factor of 8 == 2**3, */
 	/* and also undo the PASS1_BITS scaling. */
 
+#if 0
 	wsptr = workspace;
 	for (ctr = 0; ctr < (DCTSIZE >> 2); ctr++) {
 		outptr = output_buf[ctr] + output_col;	
@@ -674,55 +578,26 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		 * (This implementation)
 		 * tmp2 = z2 * 0.541196100 + z3 * (0.541196100 - 1.847759065);
 		 * tmp3 = z2 * (0.541196100 + 0.765366865) + z3 * 0.541196100;
-		 */	
-		__m64 wsptra0 = _mm_unpacklo_pi16(wsptr[0],wsptr[8]);
-		__m64 wsptra1 = _mm_unpacklo_pi16(wsptr[16],wsptr[24]);
-		__m64 wsptra = _mm_unpacklo_pi16(wsptra0,wsptra1);
-
-		__m64 wsptrb0 = _mm_unpacklo_pi16(wsptr[1],wsptr[9]);
-		__m64 wsptrb1 = _mm_unpacklo_pi16(wsptr[17],wsptr[25]);
-		__m64 wsptrb = _mm_unpacklo_pi16(wsptrb0,wsptrb1);
-
-		__m64 wsptrc0 = _mm_unpacklo_pi16(wsptr[2],wsptr[10]);
-		__m64 wsptrc1 = _mm_unpacklo_pi16(wsptr[18],wsptr[26]);
-		__m64 wsptrc = _mm_unpacklo_pi16(wsptrc0,wsptrc1);
-
-		__m64 wsptrd0 = _mm_unpacklo_pi16(wsptr[3],wsptr[11]);
-		__m64 wsptrd1 = _mm_unpacklo_pi16(wsptr[19],wsptr[27]);
-		__m64 wsptrd = _mm_unpacklo_pi16(wsptrd0,wsptrd1);
-
-		__m64 wsptre0 = _mm_unpacklo_pi16(wsptr[4],wsptr[12]);
-		__m64 wsptre1 = _mm_unpacklo_pi16(wsptr[20],wsptr[28]);
-		__m64 wsptre = _mm_unpacklo_pi16(wsptre0,wsptre1);
-
-		__m64 wsptrf0 = _mm_unpacklo_pi16(wsptr[5],wsptr[13]);
-		__m64 wsptrf1 = _mm_unpacklo_pi16(wsptr[21],wsptr[29]);
-		__m64 wsptrf = _mm_unpacklo_pi16(wsptrf0,wsptrf1);
-
-		__m64 wsptrg0 = _mm_unpacklo_pi16(wsptr[6],wsptr[14]);
-		__m64 wsptrg1 = _mm_unpacklo_pi16(wsptr[22],wsptr[30]);
-		__m64 wsptrg = _mm_unpacklo_pi16(wsptrg0,wsptrg1);
-
-		__m64 wsptrh0 = _mm_unpacklo_pi16(wsptr[7],wsptr[15]);
-		__m64 wsptrh1 = _mm_unpacklo_pi16(wsptr[23],wsptr[31]);
-		__m64 wsptrh = _mm_unpacklo_pi16(wsptrh0,wsptrh1);
-
-		z2 = wsptrc;
-		z3 = wsptrg;
-
+		 */
+		z2 = _mm_set_pi16(wsptr[2],wsptr[2 + DCTSIZE*1],wsptr[2 + DCTSIZE*2],wsptr[2 + DCTSIZE*3]);
+		z3 = _mm_set_pi16(wsptr[3],wsptr[3 + DCTSIZE*1],wsptr[3 + DCTSIZE*2],wsptr[3 + DCTSIZE*3]);
+		//z3 = wsptr[2];
+		//z3 = wsptr[3];
 		__m64 z23L = _mm_unpacklo_pi16(z2,z3);
 		__m64 z23H = _mm_unpackhi_pi16(z2,z3);
 
 		__m64 tmp3L = _mm_madd_pi16(z23L,T1);	//tmp3L
 		__m64 tmp3H = _mm_madd_pi16(z23H,T1);	//tmp3H
 		__m64 tmp2L = _mm_madd_pi16(z23L,T2);	//tmp2L
-		__m64 tmp2H = _mm_madd_pi16(z23H,T2);	//tmp2H
-
-		z2 = wsptra;
-		z3 = wsptre;
-
-		__m64 z23a = _mm_add_si64(z2,z3);
-		__m64 z23s = _mm_sub_si64(z2,z3);
+		__m64 tmp2H = _mm_madd_pi16(z23L,T2);	//tmp2L
+		
+		z2 = _mm_set_pi16(wsptr[0],wsptr[0 + DCTSIZE*1],wsptr[0 + DCTSIZE*2],wsptr[0 + DCTSIZE*3]);
+		z3 = _mm_set_pi16(wsptr[6],wsptr[6 + DCTSIZE*1],wsptr[6 + DCTSIZE*2],wsptr[6 + DCTSIZE*3]);
+		//z2 = wsptr[0];
+		//z3 = wsptr[6];
+		
+		__m64 z23a = _mm_add_pi16(z2,z3);
+		__m64 z23s = _mm_sub_pi16(z2,z3);
 
 		__m64 tmp0L = _mm_loadlo_pi16(z23a);
 		__m64 tmp0H = _mm_loadhi_pi16(z23a);
@@ -760,11 +635,17 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		 * z3 = z3 * (1.175875602 - 1.961570560) + z4 * 1.175875602;
 		 *z4 = z3 * 1.175875602 + z4 * (1.175875602 - 0.390180644);
 		 */
-		tmp0 = wsptrh;
-		tmp1 = wsptrf;
-		tmp2 = wsptrd;
-		tmp3 = wsptrb;
-
+		
+		tmp0 = _mm_set_pi16(wsptr[7],wsptr[7 + DCTSIZE*1],wsptr[7 + DCTSIZE*2],wsptr[7 + DCTSIZE*3]);
+		tmp1 = _mm_set_pi16(wsptr[5],wsptr[5 + DCTSIZE*1],wsptr[5 + DCTSIZE*2],wsptr[5 + DCTSIZE*3]);
+		tmp2 = _mm_set_pi16(wsptr[3],wsptr[3 + DCTSIZE*1],wsptr[3 + DCTSIZE*2],wsptr[3 + DCTSIZE*3]);
+		tmp3 = _mm_set_pi16(wsptr[1],wsptr[1 + DCTSIZE*1],wsptr[1 + DCTSIZE*2],wsptr[1 + DCTSIZE*3]);
+		/*
+		tmp0 = wsptr[7];
+		tmp1 = wsptr[5];
+		tmp2 = wsptr[3];
+		tmp3 = wsptr[1];
+		*/
 		z3 = _mm_add_pi16(tmp0,tmp2);	//z3 = tmp0 + tmp2
 		z4 = _mm_add_pi16(tmp1,tmp3);	//z4 = tmp1 + tmp3
 
@@ -805,8 +686,8 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
 		tmp0L =  _mm_add_pi32(tmp0L,z3L);
 		tmp0H = _mm_add_pi32(tmp0H,z3H);
-		tmp3L =  _mm_add_pi32(tmp0L,z4L);
-		tmp3H = _mm_add_pi32(tmp0H,z4H);
+		tmp3L =  _mm_add_pi32(tmp3L,z4L);
+		tmp3H = _mm_add_pi32(tmp3H,z4H);
 
 		tmp12L = _mm_unpacklo_pi16(tmp1,tmp2);
 		tmp12H = _mm_unpackhi_pi16(tmp1,tmp2);
@@ -905,8 +786,8 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 		__m64 data35 = _mm_packs_pi16(data3,data5); 	//data35 = (03 13 23 33 05 15 25 35)
 
 		//	CENTERJSAMPLE = 128 = [0000 0000 0000 0080] --> [0080] = [0000 0000 1000 0000]
-		//	                ==> [0000 0000 0000 8080] --> [8080] = [1000 0000 1000 0000]
-		//					==>	[1000 1000 1000 1000]
+		//	                  ==> [0000 0000 0000 8080] --> [8080] = [1000 0000 1000 0000]
+		//			  ==> [1000 1000 1000 1000]
 		T11 = _mm_unpacklo_pi8((__m64) CENTERJSAMPLE,(__m64) CENTERJSAMPLE);	//CENTERJSAMPLE = 128
 		T11 = _mm_shuffle_pi16(T11,_mm_setzero_si64());
 		//	data06 = (00 10 20 30 06 16 26 36)	
@@ -933,23 +814,25 @@ jsimd_idct_islow_mmx (j_decompress_ptr cinfo, jpeg_component_info * compptr,
 
 		/*  dataHLL = (00 01 02 03 04 05 06 07) punpcklbh 0000 -->(0000 0001 0002 0003)  -->
 		 *					punpckhbh 0000 -->(0004 0005 0006 0007)	 -->	
-		 *	pextrh --> (0000 0000 0000 0000) (0000 0000 0000 0001) (0000 0000 0000 0002) (0000 0000 0000 0003)
-		 *	pextrh --> (0004 0000 0000 0004) (0000 0000 0000 0005) (0000 0000 0000 0006) (0000 0000 0000 0007)
-		 *	outptr[DCTSIZE*0 + 0] = (00) 
-		 * */	
-		for (num = 0; num++; num <= (DCTSIZE >> 1)-1){
-			outptr[DCTSIZE*0 + num + 0] = (char) _mm_extract_pi16(_mm_loadlo_pi8_f(dataHLL),(__m64) num);
-			outptr[DCTSIZE*0 + num + 4] = (char) _mm_extract_pi16(_mm_loadhi_pi8_f(dataHLL),(__m64) num);
-			outptr[DCTSIZE*1 + num + 0] = (char) _mm_extract_pi16(_mm_loadlo_pi8_f(dataHLH),(__m64) num);
-			outptr[DCTSIZE*1 + num + 4] = (char) _mm_extract_pi16(_mm_loadhi_pi8_f(dataHLH),(__m64) num);
-			outptr[DCTSIZE*2 + num + 0] = (char) _mm_extract_pi16(_mm_loadlo_pi8_f(dataHHL),(__m64) num);
-			outptr[DCTSIZE*2 + num + 4] = (char) _mm_extract_pi16(_mm_loadhi_pi8_f(dataHHL),(__m64) num);
-			outptr[DCTSIZE*3 + num + 0] = (char) _mm_extract_pi16(_mm_loadlo_pi8_f(dataHHH),(__m64) num);
-			outptr[DCTSIZE*3 + num + 4] = (char) _mm_extract_pi16(_mm_loadhi_pi8_f(dataHHH),(__m64) num);
-
-			wsptr += (DCTSIZE >> 1);		/* advance pointer to next row */
-		}
+		 *  pextrh --> (0000 0000 0000 0000) (0000 0000 0000 0001) (0000 0000 0000 0002) (0000 0000 0000 0003)
+		 *  pextrh --> (0004 0000 0000 0004) (0000 0000 0000 0005) (0000 0000 0000 0006) (0000 0000 0000 0007)
+		 *  outptr[DCTSIZE*0 + 0] = (00) 
+		 * */
+		_mm_store_si64(&outptr[DCTSIZE*0],dataHLL);
+		_mm_store_si64(&outptr[DCTSIZE*1],dataHLH);
+		_mm_store_si64(&outptr[DCTSIZE*2],dataHHL);
+		_mm_store_si64(&outptr[DCTSIZE*3],dataHHH);
+		/*	
+		outptr[DCTSIZE*0] = dataHLL;
+		outptr[DCTSIZE*1] = dataHLH;
+		outptr[DCTSIZE*2] = dataHHL;
+		outptr[DCTSIZE*3] = dataHHH;
+		*/
+		wsptr += (DCTSIZE >> 1);		/* advance pointer to next row */
+	
 	}
+#endif
 }
 
 #endif /* DCT_ISLOW_SUPPORTED */
+

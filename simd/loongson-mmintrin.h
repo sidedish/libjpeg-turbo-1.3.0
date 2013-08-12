@@ -1072,6 +1072,17 @@ _mm_load_si32 (const __m32 *src)
 }
 
 extern __inline __m64 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
+_mm_load_si64 (const __m64 *src)
+{
+    __m64 ret;
+    asm ("ldc1 %0, %1\n\t"
+	 : "=f" (ret)
+	 : "m" (*src)
+	 );
+    return ret;
+}
+
+extern __inline __m64 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _mm_loadlo_pi8 (const uint32_t *src)
 {
     return _mm_unpacklo_pi8_f (*(__m32 *)src, _mm_setzero_si64());
