@@ -558,6 +558,17 @@ _mm_andnot_si64 (__m64 __m1, __m64 __m2)
 
 
 extern __inline __m64 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
+_mm_or_si32 (__m32 __m1, __m32 __m2)
+{
+	__m32 ret;
+	asm("or %0, %1, %2\n\t"
+	   : "=f" (ret)
+	   : "f" (__m1), "f" (__m2)
+	);
+	return ret;
+}
+
+extern __inline __m64 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _mm_or_si64 (__m64 __m1, __m64 __m2)
 {
 	__m64 ret;
@@ -567,7 +578,6 @@ _mm_or_si64 (__m64 __m1, __m64 __m2)
 	);
 	return ret;
 }
-
 
 extern __inline __m64 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _mm_xor_si64 (__m64 __m1, __m64 __m2)
@@ -1063,7 +1073,7 @@ _mm_store_si64 (__m64 *dest, __m64 src)
 extern __inline __m64 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _mm_load_si32 (const __m32 *src)
 {
-    __m64 ret;
+    __m32 ret;
     asm ("lwc1 %0, %1\n\t"
 	 : "=f" (ret)
 	 : "m" (*src)

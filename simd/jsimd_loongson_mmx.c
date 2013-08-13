@@ -188,6 +188,7 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
 //#define DEBUG_PASS1
 //#define DEBUG_PASS2
 //#define get_m64_value(addr) (*(__m64 *)addr)
+#define test_m32_zero(mm32) (!(*(uint32_t *)&mm32))
 #define test_m64_zero(mm64) (!(*(uint64_t *)&mm64))
 
 GLOBAL(void)
@@ -228,35 +229,42 @@ jsimd_idct_islow_mmx (void * dct_table,
 		 * With typical images and quantization tables, half or more of the
 		 * column DCT calculations can be simplified this way.
 		 */
-		__m64 inptr0 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*0]); //???
-		__m64 inptr1 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*1]);
-		__m64 inptr2 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*2]);
-		__m64 inptr3 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*3]);
-		__m64 inptr4 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*4]);
-		__m64 inptr5 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*5]);
-		__m64 inptr6 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*6]);
-		__m64 inptr7 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*7]);
 		
-		__m64 mm1 = _mm_or_si64(inptr1, inptr3);
-		__m64 mm2 = _mm_or_si64(inptr2, inptr4);
-		mm1 = _mm_or_si64(mm1,inptr5 );
-		mm2 = _mm_or_si64(mm2,inptr6);
-		mm1 = _mm_or_si64(mm1,inptr7);
-		mm1 = _mm_or_si64(mm1, mm2);
-
+		__m32 inptra = _mm_load_si32((__m32 *)&inptr[DCTSIZE*1]);
+		__m32 inptrb = _mm_load_si32((__m32 *)&inptr[DCTSIZE*2]);
+		__m32 mm0 = _mm_or_si32(inptra, inptrb);
+			
+		if (test_m32_zero(mm0))	{
+			
+			//__m64 inptr0 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*0]);
+			__m64 inptr1 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*1]);
+			__m64 inptr2 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*2]);
+			__m64 inptr3 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*3]);
+			__m64 inptr4 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*4]);
+			__m64 inptr5 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*5]);
+			__m64 inptr6 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*6]);
+			__m64 inptr7 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*7]);
+			
+			__m64 mm1 = _mm_or_si64(inptr1, inptr3);
+			__m64 mm2 = _mm_or_si64(inptr2, inptr4);
+			mm1 = _mm_or_si64(mm1,inptr5 );
+			mm2 = _mm_or_si64(mm2,inptr6);
+			mm1 = _mm_or_si64(mm1,inptr7);
+			mm1 = _mm_or_si64(mm1, mm2);
+			
 #ifdef DEBUG_PASS1
-    		printf("input:%d\n", ctr);
-    		printf("0x%16llx\n", to_uint64(inptr0));
-    		printf("0x%16llx\n", to_uint64(inptr1));
-    		printf("0x%16llx\n", to_uint64(inptr2));
-    		printf("0x%16llx\n", to_uint64(inptr3));
-    		printf("0x%16llx\n", to_uint64(inptr4));
-    		printf("0x%16llx\n", to_uint64(inptr5));
-    		printf("0x%16llx\n", to_uint64(inptr6));
-    		printf("0x%16llx\n", to_uint64(inptr7));
+    			printf("input:%d\n", ctr);
+    			//printf("0x%16llx\n", to_uint64(inptr0));
+    			printf("0x%16llx\n", to_uint64(inptr1));
+    			printf("0x%16llx\n", to_uint64(inptr2));
+    			printf("0x%16llx\n", to_uint64(inptr3));
+    			printf("0x%16llx\n", to_uint64(inptr4));
+    			printf("0x%16llx\n", to_uint64(inptr5));
+    			printf("0x%16llx\n", to_uint64(inptr6));
+    			printf("0x%16llx\n", to_uint64(inptr7));
 #endif
 
-		if (test_m64_zero(mm1)) {
+			if (test_m64_zero(mm1)) {
 			/* AC terms all zero */
 			__m64 quantptr0 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*0]);
 			
@@ -293,7 +301,7 @@ jsimd_idct_islow_mmx (void * dct_table,
 			wsptr += DCTSIZE*loopsize;
 			continue;
 		}
-
+		}
 		/* Even part: reverse the even part of the forward DCT. */
 		/* The rotator is sqrt(2)*c(-6). */
 
@@ -306,6 +314,12 @@ jsimd_idct_islow_mmx (void * dct_table,
 		 * tmp2 = z2 * 0.541196100 + z3 * (0.541196100 - 1.847759065);
 		 * tmp3 = z2 * (0.541196100 + 0.765366865) + z3 * 0.541196100;
 		 */
+
+		__m64 inptr0 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*0]);
+		__m64 inptr2 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*2]);
+		__m64 inptr4 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*4]);
+		__m64 inptr6 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*6]);
+
 		__m64 quantptr0 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*0]);
 		__m64 quantptr2 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*2]);
 		__m64 quantptr4 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*4]);
@@ -356,6 +370,12 @@ jsimd_idct_islow_mmx (void * dct_table,
 		/* Odd part per figure 8; the matrix is unitary and hence its
 		 * transpose is its inverse.  i0..i3 are y7,y5,y3,y1 respectively.
 		 */	
+
+		__m64 inptr1 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*1]);
+		__m64 inptr3 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*3]);
+		__m64 inptr5 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*5]);
+		__m64 inptr7 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*7]);
+
 		__m64 quantptr1 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*1]);
 		__m64 quantptr3 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*3]);
 		__m64 quantptr5 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*5]);
