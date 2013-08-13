@@ -256,22 +256,20 @@ jsimd_idct_islow_mmx (void * dct_table,
     		printf("0x%16llx\n", to_uint64(inptr7));
 #endif
 
-#if 0
 		if (test_m64_zero(mm1)) {
 			/* AC terms all zero */
-			__m64 dcval = _mm_load_si64((__m64 *)&inptr[DCTSIZE*0]);
 			__m64 quantptr0 = _mm_load_si64((__m64 *)&quantptr[DCTSIZE*0]);
 			
-			dcval = _mm_mullo_pi16(dcval, quantptr0);
+			__m64 dcval = _mm_mullo_pi16(inptr0, quantptr0);
 			dcval =  _mm_slli_pi16(dcval, (int64_t)PASS1_BITS);	//dcval=in0=(00 01 02 03)
 			
-			__m64 dcval1 = _mm_unpacklo_pi16(dcval, dcval);		//dcvalL=in0=(00 00 01 01)
-			__m64 dcval2 = _mm_unpackhi_pi16(dcval, dcval);		//dcvalL=in0=(02 02 03 03)
+			__m64 tmplo = _mm_unpacklo_pi16(dcval, dcval);		//dcvalL=in0=(00 00 01 01)
+			__m64 tmphi = _mm_unpackhi_pi16(dcval, dcval);		//dcvalL=in0=(02 02 03 03)
 
-			dcval1 = _mm_unpacklo_pi32(dcval1, dcval1);	//dcvalL0=in0=(00 00 00 00)
-			dcval2 = _mm_unpackhi_pi32(dcval1, dcval1);	//dcvalL1=in0=(01 01 01 01)
-			__m64 dcval3 = _mm_unpacklo_pi32(dcval2, dcval2);	//dcvalH0=in0=(02 02 02 02)
-			__m64 dcval4 = _mm_unpackhi_pi32(dcval2, dcval2);	//dcvalH1=in0=(03 03 03 03)
+			__m64 dcval1 = _mm_unpacklo_pi32(tmplo, tmplo);	//dcvalL0=in0=(00 00 00 00)
+			__m64 dcval2 = _mm_unpackhi_pi32(tmplo, tmplo);	//dcvalL1=in0=(01 01 01 01)
+			__m64 dcval3 = _mm_unpacklo_pi32(tmphi, tmphi);	//dcvalH0=in0=(02 02 02 02)
+			__m64 dcval4 = _mm_unpackhi_pi32(tmphi, tmphi);	//dcvalH1=in0=(03 03 03 03)
 			
 			_mm_store_si64((__m64 *)&wsptr[DCTSIZE*0], dcval1);
 			_mm_store_si64((__m64 *)&wsptr[DCTSIZE*0 + loopsize], dcval1);
@@ -292,10 +290,9 @@ jsimd_idct_islow_mmx (void * dct_table,
 			
 			inptr += loopsize;			/* advance pointers to next column */
 			quantptr += loopsize;
-			wsptr += loopsize;
+			wsptr += DCTSIZE*loopsize;
 			continue;
 		}
-#endif
 
 		/* Even part: reverse the even part of the forward DCT. */
 		/* The rotator is sqrt(2)*c(-6). */
