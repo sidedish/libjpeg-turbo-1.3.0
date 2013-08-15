@@ -1026,8 +1026,9 @@ jsimd_fdct_islow_mmx (DCTELEM * data)
      		 * cK represents cos(K*pi/16).
      		 * i0..i3 in the paper are tmp4..tmp7 here.
      		 */
-		z3 = _mm_packs_pi16(tmp4, tmp6);	//z3=tmp4+tmp6
-		z4 = _mm_packs_pi16(tmp5, tmp7);	//z4=tmp5+tmp7
+		
+		z3 = _mm_add_pi16(tmp4, tmp6);	//z3=tmp4+tmp6
+		z4 = _mm_add_pi16(tmp5, tmp7);	//z4=tmp5+tmp7
 			
 		/*(Original)
         	 *z5 = (z3 + z4) * 1.175875602;
@@ -1095,10 +1096,10 @@ jsimd_fdct_islow_mmx (DCTELEM * data)
 		__m64 tmp6L = _mm_madd_pi16(tmp56lo, PW_MF256_F050);	//tmp6L
 		__m64 tmp6H = _mm_madd_pi16(tmp56hi, PW_MF256_F050);	//tmp6H
 		
-		__m64 data5L = _mm_add_pi32(tmp5L, z3L);	//data5L
-		__m64 data5H = _mm_add_pi32(tmp5H, z3H);	//data5H
-		__m64 data3L = _mm_add_pi32(tmp6L, z4L);	//data3L
-		__m64 data3H = _mm_add_pi32(tmp6H, z4H);	//data3H
+		__m64 data5L = _mm_add_pi32(tmp5L, z4L);	//data5L
+		__m64 data5H = _mm_add_pi32(tmp5H, z4H);	//data5H
+		__m64 data3L = _mm_add_pi32(tmp6L, z3L);	//data3L
+		__m64 data3H = _mm_add_pi32(tmp6H, z3H);	//data3H
 	
 		data5L = _mm_add_pi32(data5L, PD_DESCALE_P1);
 		data5H = _mm_add_pi32(data5H, PD_DESCALE_P1);
@@ -1255,8 +1256,8 @@ jsimd_fdct_islow_mmx (DCTELEM * data)
                  * cK represents cos(K*pi/16).
                  * i0..i3 in the paper are tmp4..tmp7 here.
                  */
-                z3 = _mm_packs_pi16(tmp4, tmp6);         //z3=tmp4+tmp6
-                z4 = _mm_packs_pi16(tmp5, tmp7);         //z4=tmp5+tmp7
+                z3 = _mm_add_pi16(tmp4, tmp6);         //z3=tmp4+tmp6
+                z4 = _mm_add_pi16(tmp5, tmp7);         //z4=tmp5+tmp7
 		
 		/* (Original)
          	 * z5 = (z3 + z4) * 1.175875602;
@@ -1324,10 +1325,10 @@ jsimd_fdct_islow_mmx (DCTELEM * data)
 		__m64 tmp6L = _mm_madd_pi16(tmp56lo, PW_MF256_F050);	//tmp6L
 		__m64 tmp6H = _mm_madd_pi16(tmp56hi, PW_MF256_F050);	//tmp6H
 		
-		__m64 data5L = _mm_add_pi32(tmp5L, z3L);	//data5L
-		__m64 data5H = _mm_add_pi32(tmp5H, z3H);	//data5H
-		__m64 data3L = _mm_add_pi32(tmp6L, z4L);	//data3L
-		__m64 data3H = _mm_add_pi32(tmp6H, z4H);	//data3H
+		__m64 data5L = _mm_add_pi32(tmp5L, z4L);	//data5L
+		__m64 data5H = _mm_add_pi32(tmp5H, z4H);	//data5H
+		__m64 data3L = _mm_add_pi32(tmp6L, z3L);	//data3L
+		__m64 data3H = _mm_add_pi32(tmp6H, z3H);	//data3H
 		
 		data5L = _mm_add_pi32(data5L, PD_DESCALE_P2);
 		data5H = _mm_add_pi32(data5H, PD_DESCALE_P2);
