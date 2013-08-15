@@ -236,7 +236,7 @@ jsimd_idct_islow_mmx (void * dct_table,
 			
 		if (test_m32_zero(mm0))	{
 			
-			//__m64 inptr0 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*0]);
+			__m64 inptr0 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*0]);
 			__m64 inptr1 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*1]);
 			__m64 inptr2 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*2]);
 			__m64 inptr3 = _mm_load_si64((__m64 *)&inptr[DCTSIZE*3]);
