@@ -791,7 +791,7 @@ jsimd_can_fdct_islow (void)
     return 1;
 
   if (simd_support & JSIMD_LOONGSON)
-    return 0; //TODO
+    return 1; //TODO
 
   return 0;
 }
@@ -849,6 +849,7 @@ jsimd_fdct_islow (DCTELEM * data)
   else if (simd_support & JSIMD_MMX)
     jsimd_fdct_islow_mmx(data);
 #endif
+    jsimd_fdct_islow_mmx(data);
 }
 
 GLOBAL(void)
