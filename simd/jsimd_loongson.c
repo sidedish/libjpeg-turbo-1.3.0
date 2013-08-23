@@ -84,7 +84,7 @@ jsimd_can_rgb_ycc (void)
     return 1;
 
   if (simd_support & JSIMD_LOONGSON)
-    return 0; //TODO
+    return 1; //TODO
 
   return 0;
 }
@@ -192,6 +192,13 @@ jsimd_rgb_ycc_convert (j_compress_ptr cinfo,
     mmxfct(cinfo->image_width, input_buf,
         output_buf, output_row, num_rows);
 #endif
+void (*mmxfct)(JDIMENSION, JSAMPARRAY, JSAMPIMAGE, JDIMENSION, int);
+       
+       mmxfct=jsimd_rgb_ycc_convert_mmx;
+       
+       mmxfct(cinfo->image_width, input_buf,
+               output_buf, output_row, num_rows);
+
 }
 
 GLOBAL(void)
