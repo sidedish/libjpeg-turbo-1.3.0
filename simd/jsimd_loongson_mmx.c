@@ -146,19 +146,57 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
 #define FIX_3_072711026  FIX(3.072711026)
 #endif
 
-#define PW_F130_F054    _mm_set_pi16(FIX_0_541, (FIX_0_541+FIX_0_765), FIX_0_541, (FIX_0_541+FIX_0_765))
-#define PW_F054_MF130   _mm_set_pi16((FIX_0_541-FIX_1_847), FIX_0_541, (FIX_0_541-FIX_1_847), FIX_0_541)
-#define PW_MF078_F117   _mm_set_pi16(FIX_1_175, (FIX_1_175-FIX_1_961), FIX_1_175, (FIX_1_175-FIX_1_961))
-#define PW_F117_F078    _mm_set_pi16((FIX_1_175-FIX_0_390), FIX_1_175, (FIX_1_175-FIX_0_390), FIX_1_175)
-#define PW_MF060_MF089  _mm_set_pi16(-FIX_0_899, (FIX_0_298-FIX_0_899), -FIX_0_899, (FIX_0_298-FIX_0_899))
-#define PW_MF089_F060   _mm_set_pi16((FIX_1_501-FIX_0_899), -FIX_0_899, (FIX_1_501-FIX_0_899), -FIX_0_899)
-#define PW_MF050_MF256  _mm_set_pi16(-FIX_2_562, (FIX_2_053-FIX_2_562), -FIX_2_562, (FIX_2_053-FIX_2_562))
-#define PW_MF256_F050   _mm_set_pi16((FIX_3_072-FIX_2_562), -FIX_2_562, (FIX_3_072-FIX_2_562), -FIX_2_562)
-#define PD_DESCALE_P1   _mm_set_pi32((1 << (DESCALE_P1-1)), (1 << (DESCALE_P1-1)))
-#define IPD_DESCALE_P2   _mm_set_pi32((1 << (IDESCALE_P2-1)), (1 << (IDESCALE_P2-1)))
-#define FPD_DESCALE_P2   _mm_set_pi32((1 << (FDESCALE_P2-1)), (1 << (FDESCALE_P2-1)))
-#define PB_CENTERJSAMP  _mm_set_pi8(CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE)
-#define PW_DESCALE_P2X  _mm_set_pi16((1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)))
+enum const_index{
+	index_PW_F130_F054  ,
+	index_PW_F054_MF130 ,
+	index_PW_MF078_F117 ,
+	index_PW_F117_F078  ,
+	index_PW_MF060_MF089,
+	index_PW_MF089_F060 ,
+	index_PW_MF050_MF256,
+	index_PW_MF256_F050 ,
+	index_PD_DESCALE_P1 ,
+	index_IPD_DESCALE_P2,
+	index_FPD_DESCALE_P2,
+	index_PB_CENTERJSAMP,
+	index_PW_DESCALE_P2X
+};
+
+#define _uint64_set_pi8(a, b, c, d, e, f, g, h) (((uint64_t)(uint8_t)a << 56) | ((uint64_t)(uint8_t)b << 48) | ((uint64_t)(uint8_t)c << 40)|((uint64_t)(uint8_t)d << 32) | ((uint64_t)(uint8_t)e << 24) | ((uint64_t)(uint8_t)f << 16) | ((uint64_t)(uint8_t)g << 8)|((uint64_t)(uint8_t)h))
+#define _uint64_set_pi16(a, b, c, d) (((uint64_t)(uint16_t)a << 48) | ((uint64_t)(uint16_t)b << 32) | ((uint64_t)(uint16_t)c << 16)|((uint64_t)(uint16_t)d))
+#define _uint64_set_pi32(a, b) (((uint64_t)(uint32_t)a << 32) | ((uint64_t)(uint32_t)b))
+
+uint64_t const_value[]={
+	_uint64_set_pi16(FIX_0_541, (FIX_0_541+FIX_0_765), FIX_0_541, (FIX_0_541+FIX_0_765)),
+	_uint64_set_pi16((FIX_0_541-FIX_1_847), FIX_0_541, (FIX_0_541-FIX_1_847), FIX_0_541),
+	_uint64_set_pi16(FIX_1_175, (FIX_1_175-FIX_1_961), FIX_1_175, (FIX_1_175-FIX_1_961)),
+	_uint64_set_pi16((FIX_1_175-FIX_0_390), FIX_1_175, (FIX_1_175-FIX_0_390), FIX_1_175),
+	_uint64_set_pi16(-FIX_0_899, (FIX_0_298-FIX_0_899), -FIX_0_899, (FIX_0_298-FIX_0_899)),
+	_uint64_set_pi16((FIX_1_501-FIX_0_899), -FIX_0_899, (FIX_1_501-FIX_0_899), -FIX_0_899),
+	_uint64_set_pi16(-FIX_2_562, (FIX_2_053-FIX_2_562), -FIX_2_562, (FIX_2_053-FIX_2_562)),
+	_uint64_set_pi16((FIX_3_072-FIX_2_562), -FIX_2_562, (FIX_3_072-FIX_2_562), -FIX_2_562),
+	_uint64_set_pi32((1 << (DESCALE_P1-1)), (1 << (DESCALE_P1-1))),
+	_uint64_set_pi32((1 << (IDESCALE_P2-1)), (1 << (IDESCALE_P2-1))),
+	_uint64_set_pi32((1 << (FDESCALE_P2-1)), (1 << (FDESCALE_P2-1))),
+	_uint64_set_pi8(CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE),
+	_uint64_set_pi16((1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)))
+};
+
+#define get_const_value(index) (*(__m64*)&const_value[index])
+
+#define PW_F130_F054    get_const_value(index_PW_F130_F054)
+#define PW_F054_MF130   get_const_value(index_PW_F054_MF130)
+#define PW_MF078_F117   get_const_value(index_PW_MF078_F117)
+#define PW_F117_F078    get_const_value(index_PW_F117_F078)
+#define PW_MF060_MF089  get_const_value(index_PW_MF060_MF089)
+#define PW_MF089_F060   get_const_value(index_PW_MF089_F060)
+#define PW_MF050_MF256  get_const_value(index_PW_MF050_MF256)
+#define PW_MF256_F050   get_const_value(index_PW_MF256_F050)
+#define PD_DESCALE_P1   get_const_value(index_PD_DESCALE_P1)
+#define IPD_DESCALE_P2  get_const_value(index_IPD_DESCALE_P2)
+#define FPD_DESCALE_P2  get_const_value(index_FPD_DESCALE_P2)
+#define PB_CENTERJSAMP  get_const_value(index_PB_CENTERJSAMP)
+#define PW_DESCALE_P2X  get_const_value(index_PW_DESCALE_P2X)
 
 /* Multiply an INT32 variable by an INT32 constant to yield an INT32 result.
  *  * For 8-bit samples with the recommended scaling, all the variable
