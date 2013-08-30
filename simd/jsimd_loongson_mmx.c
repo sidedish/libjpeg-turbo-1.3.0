@@ -89,22 +89,9 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
  */
 
 #define DESCALE_P1       (CONST_BITS-PASS1_BITS)
-#define IDESCALE_P2      (CONST_BITS+PASS1_BITS+3)
-#define FDESCALE_P2      (CONST_BITS+PASS1_BITS)
+#define IDESCALE_P2       (CONST_BITS+PASS1_BITS+3)
+#define FDESCALE_P2       (CONST_BITS+PASS1_BITS)
 #define CENTERJSAMPLE    128
-
-#define BYTE_BIT         8
-#define WORD_BIT         16   
-#define SCALEBITS        16 
-#define F_0_081	   ((short)   5329)		/* FIX(0.08131) */
-#define F_0_114    ((short)   7471)            	/* FIX(0.11400) */
-#define F_0_168    ((short)  11059)            	/* FIX(0.16874) */
-#define F_0_250    ((short)  16384)            	/* FIX(0.25000) */
-#define F_0_299    ((short)  19595)            	/* FIX(0.29900) */
-#define F_0_331    ((short)  21709)            	/* FIX(0.33126) */
-#define F_0_418    ((short)  27439)            	/* FIX(0.41869) */
-#define F_0_587    ((short)  38470)            	/* FIX(0.58700) */
-#define F_0_337    ((short)   (F_0_587 - F_0_250)) 	/* FIX(0.58700) - FIX(0.25000) */
 
 #if CONST_BITS == 13
 #define FIX_0_298  ((short)  2446)	/* FIX(0.298631336) */
@@ -133,18 +120,18 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
 #define FIX_3_072711026  ((INT32)  25172)       /* FIX(3.072711026) */
 #else
 #define DECALE(x,n)  (((x)+(1<<((n)-1)))>>(n))
-#define FIX_0_298  DECALE( 320652955, 30-CONST_BITS)    /* FIX(0.298631336) */
-#define FIX_0_390  DECALE( 418953276, 30-CONST_BITS)    /* FIX(0.390180644) */
-#define FIX_0_541  DECALE( 581104887, 30-CONST_BITS)    /* FIX(0.541196100) */
-#define FIX_0_765  DECALE( 821806413, 30-CONST_BITS)    /* FIX(0.765366865) */
-#define FIX_0_899  DECALE( 966342111, 30-CONST_BITS)    /* FIX(0.899976223) */
-#define FIX_1_175  DECALE(1262586813, 30-CONST_BITS)    /* FIX(1.175875602) */
-#define FIX_1_501  DECALE(1612031267, 30-CONST_BITS)    /* FIX(1.501321110) */
-#define FIX_1_847  DECALE(1984016188, 30-CONST_BITS)    /* FIX(1.847759065) */
-#define FIX_1_961  DECALE(2106220350, 30-CONST_BITS)    /* FIX(1.961570560) */
-#define FIX_2_053  DECALE(2204520673, 30-CONST_BITS)    /* FIX(2.053119869) */
-#define FIX_2_562  DECALE(2751909506, 30-CONST_BITS)    /* FIX(2.562915447) */
-#define FIX_3_072  DECALE(3299298341, 30-CONST_BITS)    /* FIX(3.072711026) */
+#define FIX_0_298  DECALE( 320652955,30-CONST_BITS)    /* FIX(0.298631336) */
+#define FIX_0_390  DECALE( 418953276,30-CONST_BITS)    /* FIX(0.390180644) */
+#define FIX_0_541  DECALE( 581104887,30-CONST_BITS)    /* FIX(0.541196100) */
+#define FIX_0_765  DECALE( 821806413,30-CONST_BITS)    /* FIX(0.765366865) */
+#define FIX_0_899  DECALE( 966342111,30-CONST_BITS)    /* FIX(0.899976223) */
+#define FIX_1_175  DECALE(1262586813,30-CONST_BITS)    /* FIX(1.175875602) */
+#define FIX_1_501  DECALE(1612031267,30-CONST_BITS)    /* FIX(1.501321110) */
+#define FIX_1_847  DECALE(1984016188,30-CONST_BITS)    /* FIX(1.847759065) */
+#define FIX_1_961  DECALE(2106220350,30-CONST_BITS)    /* FIX(1.961570560) */
+#define FIX_2_053  DECALE(2204520673,30-CONST_BITS)    /* FIX(2.053119869) */
+#define FIX_2_562  DECALE(2751909506,30-CONST_BITS)    /* FIX(2.562915447) */
+#define FIX_3_072  DECALE(3299298341,30-CONST_BITS)    /* FIX(3.072711026) */
 #define FIX_0_298631336  FIX(0.298631336)
 #define FIX_0_390180644  FIX(0.390180644)
 #define FIX_0_541196100  FIX(0.541196100)
@@ -159,13 +146,6 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
 #define FIX_3_072711026  FIX(3.072711026)
 #endif
 
-#define PW_F0299_F0337  _mm_set_pi16(F_0_337, F_0_299, F_0_337, F_0_299)
-#define PW_F0114_F0250  _mm_set_pi16(F_0_250, F_0_114, F_0_250, F_0_114)
-#define PW_MF016_MF033  _mm_set_pi16(-F_0_331, -F_0_168, -F_0_331, -F_0_168)
-#define PW_MF008_MF041  _mm_set_pi16(-F_0_418, -F_0_081, -F_0_418, -F_0_081)
-#define PD_ONEHALFM1_CJ _mm_set_pi32(((1 << (SCALEBITS-1)) - 1 + (CENTERJSAMPLE << SCALEBITS)), ((1 << (SCALEBITS-1)) - 1 + (CENTERJSAMPLE << SCALEBITS)))
-#define PD_ONEHALF      _mm_set_pi32((1 << (SCALEBITS-1)), (1 << (SCALEBITS-1)))
-
 #define PW_F130_F054    _mm_set_pi16(FIX_0_541, (FIX_0_541+FIX_0_765), FIX_0_541, (FIX_0_541+FIX_0_765))
 #define PW_F054_MF130   _mm_set_pi16((FIX_0_541-FIX_1_847), FIX_0_541, (FIX_0_541-FIX_1_847), FIX_0_541)
 #define PW_MF078_F117   _mm_set_pi16(FIX_1_175, (FIX_1_175-FIX_1_961), FIX_1_175, (FIX_1_175-FIX_1_961))
@@ -175,8 +155,8 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
 #define PW_MF050_MF256  _mm_set_pi16(-FIX_2_562, (FIX_2_053-FIX_2_562), -FIX_2_562, (FIX_2_053-FIX_2_562))
 #define PW_MF256_F050   _mm_set_pi16((FIX_3_072-FIX_2_562), -FIX_2_562, (FIX_3_072-FIX_2_562), -FIX_2_562)
 #define PD_DESCALE_P1   _mm_set_pi32((1 << (DESCALE_P1-1)), (1 << (DESCALE_P1-1)))
-#define IPD_DESCALE_P2  _mm_set_pi32((1 << (IDESCALE_P2-1)), (1 << (IDESCALE_P2-1)))
-#define FPD_DESCALE_P2  _mm_set_pi32((1 << (FDESCALE_P2-1)), (1 << (FDESCALE_P2-1)))
+#define IPD_DESCALE_P2   _mm_set_pi32((1 << (IDESCALE_P2-1)), (1 << (IDESCALE_P2-1)))
+#define FPD_DESCALE_P2   _mm_set_pi32((1 << (FDESCALE_P2-1)), (1 << (FDESCALE_P2-1)))
 #define PB_CENTERJSAMP  _mm_set_pi8(CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE)
 #define PW_DESCALE_P2X  _mm_set_pi16((1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)))
 
@@ -1465,250 +1445,3 @@ jsimd_fdct_islow_mmx (DCTELEM * data)
 }
 
 #endif /* DCT_ISLOW_SUPPORTED */
-
-/*
- * Convert some rows of samples to the JPEG colorspace.
- *
- * Note that we change from the application's interleaved-pixel format
- * to our internal noninterleaved, one-plane-per-component format.
- * The input buffer is therefore three times as wide as the output buffer.
- *
- * A starting row offset is provided only for the output buffer.  The caller
- * can easily adjust the passed input_buf value to accommodate any row
- * offset required on that side.
- */
-
-//#define DEBUG_RGB_YCC_CONVERT
-
-GLOBAL(void)
-jsimd_rgb_ycc_convert_mmx (JDIMENSION image_width,
-                       JSAMPARRAY input_buf, JSAMPIMAGE output_buf,
-                       JDIMENSION output_row, int num_rows)
-
-{
-
-	register JSAMPROW inptr;
-  	register JSAMPROW outptr0, outptr1, outptr2;
-  	register JDIMENSION col;
-  	JDIMENSION num_cols = image_width >> 3;
-
-#ifdef DEBUG_RGB_YCC_CONVERT
-        printf("***********************RGB_YCC_CONVERT========================\n");
-#endif	
-  	while (--num_rows >= 0) {
-		
-		inptr = *input_buf++;
-		outptr0 = output_buf[0][output_row];
-    		outptr1 = output_buf[1][output_row];
-    		outptr2 = output_buf[2][output_row];
-		output_row ++;
-		
-		for (col = 0; col < num_cols; col++ ) {
-	
-			__m64 r = _mm_load_si64((__m64 *)&inptr[0 + 0*DCTSIZE]);	//(00 10 20 01 11 21 02 12)
-			__m64 g = _mm_load_si64((__m64 *)&inptr[0 + 1*DCTSIZE]);	//(22 03 13 23 04 14 24 05)
-			__m64 b = _mm_load_si64((__m64 *)&inptr[0 + 2*DCTSIZE]);	//(15 25 06 16 26 07 17 27)
-			
-#ifdef DEBUG_RGB_YCC_CONVERT
-			if (col < 50) {
-                		printf("inputrgb:%d\n", col);
-				printf("0x%16llx\n", to_uint64(r));
-				printf("0x%16llx\n", to_uint64(g));
-				printf("0x%16llx\n", to_uint64(b));
-			}
-#endif
-			__m64 input_buf_tmp0 = _mm_slli_si64(r, 4*BYTE_BIT);		//(-- -- -- -- 00 10 20 01) 
-			__m64 input_buf_tmp1 = _mm_srli_si64(r, 4*BYTE_BIT);		//(11 21 02 12 -- -- -- --)
-			
-			input_buf_tmp0 = _mm_unpackhi_pi8(input_buf_tmp0, g);		//(00 04 10 14 20 24 01 05)
-			g = _mm_slli_si64(g, 4*BYTE_BIT);				//(-- -- -- -- 22 03 13 23)
-			
-			input_buf_tmp1 = _mm_unpacklo_pi8(input_buf_tmp1, b);		//(11 15 21 25 02 06 12 16)
-			g = _mm_unpackhi_pi8(g, b);					//(22 26 03 07 13 17 23 27)
-			
-			__m64 input_buf_tmp2 = _mm_slli_si64(input_buf_tmp0, 4*BYTE_BIT);	//(-- -- -- -- 00 04 10 14)
-			__m64 input_buf_tmp3 = _mm_srli_si64(input_buf_tmp0, 4*BYTE_BIT);	//(20 24 01 05 -- -- -- --)
-			
-			input_buf_tmp2 = _mm_unpackhi_pi8(input_buf_tmp2, input_buf_tmp1);	//(00 02 04 06 10 12 14 16)
-			input_buf_tmp1 = _mm_slli_si64(input_buf_tmp1, 4*BYTE_BIT);		//(-- -- -- -- 11 15 21 25)
-			
-			input_buf_tmp3 = _mm_unpacklo_pi8(input_buf_tmp3, g);			//(20 22 24 26 01 03 05 07)
-			input_buf_tmp1 = _mm_unpackhi_pi8(input_buf_tmp1, g);			//(11 13 15 17 21 23 25 27)
-			
-			__m64 input_tmp2 = _mm_loadlo_pi8_f(input_buf_tmp2);			//(00 02 04 06) mmA
-			__m64 input_tmp4 = _mm_loadhi_pi8_f(input_buf_tmp2);			//(10 12 14 16) mmC
-			
-			__m64 input_tmp3 = _mm_loadlo_pi8_f(input_buf_tmp3);			//(20 22 24 26) mmE
-			__m64 input_tmp5 = _mm_loadhi_pi8_f(input_buf_tmp3);			//(01 03 05 07) mmB
-			
-			__m64 input_tmp1 = _mm_loadlo_pi8_f(input_buf_tmp1);			//(11 13 15 17) mmD
-			__m64 input_tmp6 = _mm_loadhi_pi8_f(input_buf_tmp1);			//(21 23 25 27) mmF
-			
-      			/* If the inputs are 0..MAXJSAMPLE, the outputs of these equations
-       			 * must be too; we do not need an explicit range-limiting operation.
-       			 * Hence the value being shifted is never negative, and we don't
-       			 * need the general RIGHT_SHIFT macro.
-       			 */
-			
-			/*
-			 * mm0=(R0 R2 R4 R6)=RE, mm2=(G0 G2 G4 G6)=GE, mm4=(B0 B2 B4 B6)=BE
-        		 * mm1=(R1 R3 R5 R7)=RO, mm3=(G1 G3 G5 G7)=GO, mm5=(B1 B3 B5 B7)=BO
-			 *
-        		 * (Original)
-        		 * Y  =  0.29900 * R + 0.58700 * G + 0.11400 * B
-        		 * Cb = -0.16874 * R - 0.33126 * G + 0.50000 * B + CENTERJSAMPLE
-        		 * Cr =  0.50000 * R - 0.41869 * G - 0.08131 * B + CENTERJSAMPLE
-        	 	*
-        	 	* (This implementation)
-        	 	* Y  =  0.29900 * R + 0.33700 * G + 0.11400 * B + 0.25000 * G
-        	 	* Cb = -0.16874 * R - 0.33126 * G + 0.50000 * B + CENTERJSAMPLE
-        	 	* Cr =  0.50000 * R - 0.41869 * G - 0.08131 * B + CENTERJSAMPLE
-		 	*/
-			
-			__m64 input_tmp5L = _mm_unpacklo_pi16(input_tmp5, input_tmp1);
-			__m64 input_tmp5H = _mm_unpackhi_pi16(input_tmp5, input_tmp1);
-			__m64 Y_RGOL = _mm_madd_pi16(input_tmp5L, PW_F0299_F0337);	//ROL*FIX(0.299)+GOL*FIX(0.337)
-			__m64 Y_RGOH = _mm_madd_pi16(input_tmp5H, PW_F0299_F0337);	//ROH*FIX(0.299)+GOH*FIX(0.337)
-			__m64 Cb_RGOL = _mm_madd_pi16(input_tmp5L, PW_MF016_MF033);	//ROL*-FIX(0.168)+GOL*-FIX(0.331)
-			__m64 Cb_RGOH = _mm_madd_pi16(input_tmp5H, PW_MF016_MF033);	//ROH*-FIX(0.168)+GOH*-FIX(0.331)
-				
-			__m64 BOL = _mm_loadlo_pi16_f(input_tmp6);	//BOL
-			__m64 BOH = _mm_loadhi_pi16_f(input_tmp6);	//BOH
-			BOL = _mm_srli_pi32(BOL, 1);			//BOL*FIX(0.500)
-			BOH = _mm_srli_pi32(BOH, 1);			//BOH*FIX(0.500)
-		
-			Cb_RGOL = _mm_add_pi32(Cb_RGOL, BOL);
-			Cb_RGOH = _mm_add_pi32(Cb_RGOH, BOH);
-			Cb_RGOL = _mm_add_pi32(Cb_RGOL, PD_ONEHALFM1_CJ);
-			Cb_RGOH = _mm_add_pi32(Cb_RGOH, PD_ONEHALFM1_CJ);	
-			Cb_RGOL = _mm_srli_pi32(Cb_RGOL, SCALEBITS);		//CbOL
-			Cb_RGOH = _mm_srli_pi32(Cb_RGOH, SCALEBITS);		//CbOH
-			__m64 Cb_RGO = _mm_packs_pi32(Cb_RGOL, Cb_RGOH);	//CbO
-			
-			__m64 input_tmp2L = _mm_unpacklo_pi16(input_tmp2, input_tmp4);
-			__m64 input_tmp2H = _mm_unpackhi_pi16(input_tmp2, input_tmp4);
-			__m64 Y_RGEL = _mm_madd_pi16(input_tmp2L, PW_F0299_F0337);	//REL*FIX(0.299)+GEL*FIX(0.337)
-			__m64 Y_RGEH = _mm_madd_pi16(input_tmp2H, PW_F0299_F0337);	//REH*FIX(0.299)+GEH*FIX(0.337)
-			__m64 Cb_RGEL = _mm_madd_pi16(input_tmp2L, PW_MF016_MF033);	//REL*-FIX(0.168)+GEL*-FIX(0.331)
-			__m64 Cb_RGEH = _mm_madd_pi16(input_tmp2H, PW_MF016_MF033);	//REH*-FIX(0.168)+GEH*-FIX(0.331)
-			
-			__m64 BEL = _mm_loadlo_pi16_f(input_tmp3);	//BEL
-			__m64 BEH = _mm_loadhi_pi16_f(input_tmp3);	//BEH
-			BEL = _mm_srli_pi32(BEL, 1);			//BEL*FIX(0.500)
-			BEH = _mm_srli_pi32(BEH, 1);			//BEH*FIX(0.500)
-			
-			Cb_RGEL = _mm_add_pi32(Cb_RGEL, BEL);
-			Cb_RGEH = _mm_add_pi32(Cb_RGEH, BEH);
-			Cb_RGEL = _mm_add_pi32(Cb_RGEL, PD_ONEHALFM1_CJ);
-			Cb_RGEH = _mm_add_pi32(Cb_RGEH, PD_ONEHALFM1_CJ);	
-			Cb_RGEL = _mm_srli_pi32(Cb_RGEL, SCALEBITS);	//CbEL
-			Cb_RGEH = _mm_srli_pi32(Cb_RGEH, SCALEBITS);	//CbEH
-			__m64 Cb_RGE = _mm_packs_pi32(Cb_RGEL, Cb_RGEH);	//CbE
-			
-			Cb_RGO = _mm_slli_pi16(Cb_RGO, BYTE_BIT);
-			__m64 Cb_RG  = _mm_or_si64(Cb_RGE, Cb_RGO);		//Cb
-		
-			__m64 input_tmp6L = _mm_unpacklo_pi16(input_tmp6, input_tmp1);
-			__m64 input_tmp6H = _mm_unpackhi_pi16(input_tmp6, input_tmp1);	
-			__m64 Y_BGOL = _mm_madd_pi16(input_tmp6L, PW_F0114_F0250);	//BOL*FIX(0.114)+GOL*FIX(0.250)	
-			__m64 Y_BGOH = _mm_madd_pi16(input_tmp6H, PW_F0114_F0250);	//BOH*FIX(0.114)+GOH*FIX(0.250)			
-			__m64 Cr_BGOL = _mm_madd_pi16(input_tmp6L, PW_MF008_MF041);	//BOL*-FIX(0.081)+GOL*-FIX(0.418)	
-			__m64 Cr_BGOH = _mm_madd_pi16(input_tmp6H, PW_MF008_MF041);	//BOH*-FIX(0.081)+GOH*-FIX(0.418)
-				
-			Y_BGOL = _mm_add_pi32(Y_BGOL, Y_RGOL);	
-			Y_BGOH = _mm_add_pi32(Y_BGOH, Y_RGOH);	
-			Y_BGOL = _mm_add_pi32(Y_BGOL, PD_ONEHALF);	
-			Y_BGOH = _mm_add_pi32(Y_BGOH, PD_ONEHALF);		
-			Y_BGOL = _mm_srli_pi32(Y_BGOL, SCALEBITS);	//YOL
-			Y_BGOH = _mm_srli_pi32(Y_BGOH, SCALEBITS);	//YOH
-			__m64 Y_BGO = _mm_packs_pi32(Y_BGOL,Y_BGOH);	//YO
-				
-			__m64 ROL = _mm_loadlo_pi16_f(input_tmp5);	//ROL
-			__m64 ROH = _mm_loadhi_pi16_f(input_tmp5);	//ROH
-			ROL = _mm_srli_pi32(ROL, 1);			//ROL*FIX(0.500)
-			ROH = _mm_srli_pi32(ROH, 1);			//ROH*FIX(0.500)
-			
-			Cr_BGOL = _mm_add_pi32(Cr_BGOL, ROL);
-			Cr_BGOH = _mm_add_pi32(Cr_BGOH, ROH);
-			Cr_BGOL = _mm_add_pi32(Cr_BGOL, PD_ONEHALFM1_CJ);
-			Cr_BGOH = _mm_add_pi32(Cr_BGOH, PD_ONEHALFM1_CJ);
-			Cr_BGOL = _mm_srli_pi32(Cr_BGOL, SCALEBITS);		//CrOL		
-			Cr_BGOH = _mm_srli_pi32(Cr_BGOH, SCALEBITS);		//CrOH
-			__m64 Cr_BGO = _mm_packs_pi32(Cr_BGOL, Cr_BGOH);	//CrO
-			
-			__m64 input_tmp3L = _mm_unpacklo_pi16(input_tmp3, input_tmp4);
-			__m64 input_tmp3H = _mm_unpackhi_pi16(input_tmp3, input_tmp4);
-			__m64 Y_BGEL = _mm_madd_pi16(input_tmp3L, PW_F0114_F0250);	//BEL*FIX(0.114)+GEL*FIX(0.250)	
-			__m64 Y_BGEH = _mm_madd_pi16(input_tmp3H, PW_F0114_F0250);	//BEH*FIX(0.114)+GEH*FIX(0.250)	
-			__m64 Cr_BGEL = _mm_madd_pi16(input_tmp3L, PW_MF008_MF041);	//BEL*-FIX(0.081)+GEL*-FIX(0.418)	
-			__m64 Cr_BGEH = _mm_madd_pi16(input_tmp3H, PW_MF008_MF041);	//BEH*-FIX(0.081)+GEH*-FIX(0.418)
-			
-			Y_BGEL = _mm_add_pi32(Y_BGEL, Y_RGEL);	
-			Y_BGEH = _mm_add_pi32(Y_BGEH, Y_RGEH);	
-			Y_BGEL = _mm_add_pi32(Y_BGEL, PD_ONEHALF);	
-			Y_BGEH = _mm_add_pi32(Y_BGEH, PD_ONEHALF);	
-			Y_BGEL = _mm_srli_pi32(Y_BGEL, SCALEBITS);		//YEL
-			Y_BGEH = _mm_srli_pi32(Y_BGEH, SCALEBITS);		//YEH
-			__m64 Y_BGE = _mm_packs_pi32(Y_BGEL, Y_BGEH);		//YE
-			
-			Y_BGO = _mm_slli_pi16(Y_BGO, BYTE_BIT);
-			__m64 Y_BG = _mm_or_si64(Y_BGE, Y_BGO);			//Y
-			
-			__m64 REL = _mm_loadlo_pi16_f(input_tmp2);		//REL	
-			__m64 REH = _mm_loadhi_pi16_f(input_tmp2);		//REH	
-			REL = _mm_srli_pi32(REL, 1);				//REL*FIX(0.500)		
-			REH = _mm_srli_pi32(REH, 1);				//REH*FIX(0.500)		
-			
-			Cr_BGEL = _mm_add_pi32(Cr_BGEL, REL);		
-			Cr_BGEH = _mm_add_pi32(Cr_BGEH, REH);		
-			Cr_BGEL = _mm_add_pi32(Cr_BGEL, PD_ONEHALFM1_CJ); 
-			Cr_BGEH = _mm_add_pi32(Cr_BGEH, PD_ONEHALFM1_CJ);		
-			Cr_BGEL = _mm_srli_pi32(Cr_BGEL, SCALEBITS);		//CrEL
-			Cr_BGEH = _mm_srli_pi32(Cr_BGEH, SCALEBITS);		//CrEH
-			__m64 Cr_BGE = _mm_packs_pi32(Cr_BGEL, Cr_BGEH);	//CrE	
-			
-			Cr_BGO = _mm_slli_pi16(Cr_BGO, BYTE_BIT);	
-			__m64 Cr_BG = _mm_or_si64(Cr_BGE, Cr_BGO);		//Cr
-			
-			_mm_store_si64((__m64 *)&outptr0[0], Y_BG);		//Y	
-			_mm_store_si64((__m64 *)&outptr1[0], Cb_RG);		//Cb	
-			_mm_store_si64((__m64 *)&outptr2[0], Cr_BG);		//Cr			
-
-#ifdef DEBUG_RGB_YCC_CONVERT
-			if (col < 50) {
-                		printf("outptr:%d\n", col);
-				printf("0x%16llx\n", to_uint64(Y_BG));
-				printf("0x%16llx\n", to_uint64(Cb_RG));
-				printf("0x%16llx\n", to_uint64(Cr_BG));
-	}
-#endif
-			inptr += RGB_PIXELSIZE*DCTSIZE;
-			outptr0 += DCTSIZE;
-			outptr1 += DCTSIZE;
-			outptr2 += DCTSIZE;
-		}
-#if DEBUG_RGB_YCC_CONVERT
-			FILE*	f0 = fopen("y.raw", "ab");
-			if (f0) {
-				fwrite(output_buf[0][output_row - 1], image_width, 1, f0);
-				fclose(f0);
-			}
-			FILE*	f1 = fopen("cb.raw", "ab");
-			if (f1) {
-				fwrite(output_buf[1][output_row - 1], image_width, 1, f1);
-				fclose(f1);
-			}
-			FILE*	f2 = fopen("cr.raw", "ab");
-			if (f2) {
-				fwrite(output_buf[2][output_row - 1], image_width, 1, f2);
-				fclose(f2);
-			}
-#endif
- 
-#ifdef DEBUG_RGB_YCC_CONVERT
-        		while(1);
-#endif
-
-	}
-}				
-	
