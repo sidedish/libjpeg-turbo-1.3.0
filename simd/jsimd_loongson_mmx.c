@@ -146,6 +146,25 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
 #define FIX_3_072711026  FIX(3.072711026)
 #endif
 
+
+#define SCALEBITS	16
+
+#define	F_0_344	((short)22554)				/* FIX(0.34414) */
+#define	F_0_714 46802					/* FIX(0.71414) */
+#define F_1_402	91881					/* FIX(1.40200) */
+#define	F_1_772	116130					/* FIX(1.77200) */
+#define	F_0_402	((short)26345)		/*FIX(1.40200) - FIX(1) */
+#define	F_0_285	((short)18734)		/* FIX(1) - FIX(0.71414) */
+#define F_0_228	((short)14942)		/* FIX(2) - FIX(1.77200) */
+
+
+
+//EXTN(jconst_ycc_rgb_convert_mmx):
+
+
+
+
+
 enum const_index{
 	index_PW_F130_F054  ,
 	index_PW_F054_MF130 ,
@@ -159,7 +178,16 @@ enum const_index{
 	index_IPD_DESCALE_P2,
 	index_FPD_DESCALE_P2,
 	index_PB_CENTERJSAMP,
-	index_PW_DESCALE_P2X
+	index_PW_DESCALE_P2X,
+	index_PW_ONE,
+	index_PW_TWO,
+	index_PW_THREE,
+	index_PW_SEVEN,
+	index_PW_EIGHT,
+	index_PW_F0402,
+	index_PW_MF0228,
+	index_PW_MF0344_F0285,
+	index_PD_ONEHALF
 };
 
 #define _uint64_set_pi8(a, b, c, d, e, f, g, h) (((uint64_t)(uint8_t)a << 56) | ((uint64_t)(uint8_t)b << 48) | ((uint64_t)(uint8_t)c << 40)|((uint64_t)(uint8_t)d << 32) | ((uint64_t)(uint8_t)e << 24) | ((uint64_t)(uint8_t)f << 16) | ((uint64_t)(uint8_t)g << 8)|((uint64_t)(uint8_t)h))
@@ -179,7 +207,16 @@ uint64_t const_value[]={
 	_uint64_set_pi32((1 << (IDESCALE_P2-1)), (1 << (IDESCALE_P2-1))),
 	_uint64_set_pi32((1 << (FDESCALE_P2-1)), (1 << (FDESCALE_P2-1))),
 	_uint64_set_pi8(CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE, CENTERJSAMPLE),
-	_uint64_set_pi16((1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)))
+	_uint64_set_pi16((1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1)), (1 << (PASS1_BITS-1))),
+	_uint64_set_pi16(1,1,1,1),
+	_uint64_set_pi16(2,2,2,2),
+	_uint64_set_pi16(3,3,3,3),
+	_uint64_set_pi16(7,7,7,7),
+	_uint64_set_pi16(8,8,8,8),
+	_uint64_set_pi16(F_0_402,F_0_402,F_0_402,F_0_402),
+    _uint64_set_pi16(-F_0_228,-F_0_228,-F_0_228,-F_0_228),
+	_uint64_set_pi16(F_0_285,-F_0_344, F_0_285, -F_0_344),
+	_uint64_set_pi32((int)(1 << (SCALEBITS-1)),(int)(1 << (SCALEBITS-1)))
 };
 
 #define get_const_value(index) (*(__m64*)&const_value[index])
@@ -197,6 +234,24 @@ uint64_t const_value[]={
 #define FPD_DESCALE_P2  get_const_value(index_FPD_DESCALE_P2)
 #define PB_CENTERJSAMP  get_const_value(index_PB_CENTERJSAMP)
 #define PW_DESCALE_P2X  get_const_value(index_PW_DESCALE_P2X)
+#define PW_ONE			get_const_value(index_PW_ONE)
+#define PW_TWO			get_const_value(index_PW_TWO)
+#define PW_THREE		get_const_value(index_PW_THREE)
+#define PW_SEVEN		get_const_value(index_PW_SEVEN)
+#define PW_EIGHT		get_const_value(index_PW_EIGHT)
+#define PW_F0402		get_const_value(index_PW_F0402)
+#define PW_MF0228		get_const_value(index_PW_MF0228)
+#define PW_MF0344_F0285	get_const_value(index_PW_MF0344_F0285)
+#define PD_ONEHALF		get_const_value(index_PD_ONEHALF)
+
+
+#ifndef MMWORD
+#define MMWORD long long 
+#endif
+#ifndef BYTE_BIT
+#define BYTE_BIT 8
+#endif
+
 
 /* Multiply an INT32 variable by an INT32 constant to yield an INT32 result.
  *  * For 8-bit samples with the recommended scaling, all the variable
@@ -1482,4 +1537,349 @@ jsimd_fdct_islow_mmx (DCTELEM * data)
 #endif
 }
 
+
+GLOBAL(void)
+jsimd_h2v2_fancy_upsample_mmx (int max_v_samp_factor,JDIMENSION downsampled_width,JSAMPARRAY input_data,JSAMPARRAY * output_data_ptr)
+{
+  JSAMPARRAY output_data = *output_data_ptr;
+  register int colctr = downsampled_width;
+  register int rowctr =  max_v_samp_factor;
+  register JSAMPROW inptr0, inptr1,outptr0,outptr1;
+  register __m64 mm0,mm1,mm2,mm3,mm4,mm5,mm6,mm7;
+  __m64 wk[4],mm_tmp;
+	register JSAMPROW inptr1_a,inptr1_b;			//inptr1(above),inptr1(below)
+	int outrow,inrow,tmp,tmp1;
+	outrow = 0;
+	inrow = 0;
+	if(0 == downsampled_width)
+		return;
+	if(0 == max_v_samp_factor)
+		return;
+//		fprintf(stderr,"max_v_samp_factor = %d\n" , max_v_samp_factor);
+	while(outrow < max_v_samp_factor){
+		inptr0	= input_data[inrow];
+		inptr1_a = input_data[(inrow-1)];
+		inptr1_b = input_data[(inrow+1)];
+		outptr0 = output_data[outrow];
+		outptr1 = output_data[(outrow+1)];
+ 		if((downsampled_width&0x7) != 0)
+		{
+			tmp = (downsampled_width-1)*sizeof(JSAMPLE);
+//			fprintf(stderr,"tmp = %d\n",tmp);
+			tmp1 =  downsampled_width*sizeof(JSAMPLE);
+//			fprintf(stderr,"tmp1 = %d\n",tmp1);
+			asm("addu	$8,%3,%6\r\n"
+			"lb	$9,($8)\r\n"
+			"addu	$8,%3,%7\r\n"
+			"sb	$9,($8)\r\n"
+			"addu	$8,%4,%6\r\n"
+			"lb	$9,($8)\r\n"
+			"addu	$8,%4,%7\r\n"
+			"sb	$9,($8)\r\n"
+			"addu	$8,%5,%6\r\n"
+			"lb	$9,($8)\r\n"
+			"addu	$8,%5,%7\r\n"
+			"sb	$9,($8)\r\n"
+			:"=m"(*inptr1_a),"=m"(*inptr0),"=m"(*inptr1_b)
+			:"r"(inptr1_a),"r"(inptr0),"r"(inptr1_b),"r"(tmp),"r"(tmp1)
+			:"$8","$9"
+			);
+		}
+
+		/*process the first column block*/
+		mm0 = _mm_load_si64((__m64 *)inptr0);			//mm0 = row[0][0]
+		mm1 = _mm_load_si64((__m64 *)inptr1_a);			//mm1 = row[-1][0]
+		mm2 = _mm_load_si64((__m64 *)inptr1_b);			//mm2 = row[1][0]
+
+		mm3 = _mm_xor_si64(mm3,mm3);					//mm3 = (all 0's)
+		mm4 = mm0;
+		mm0 = _mm_unpacklo_pi8(mm0,mm3);				//mm0 = row[0][0](0 1 2 3)
+		mm4 = _mm_unpackhi_pi8(mm4,mm3);				//mm4 = row[0][0](4 5 6 7)
+		mm5 = mm1;
+		mm1 = _mm_unpacklo_pi8(mm1,mm3);				//mm1 = row[-1][0](0 1 2 3)
+		mm5 = _mm_unpackhi_pi8(mm5,mm3);				//mm5 = row[-1][0](4 5 6 7)
+		mm6 = mm2;
+		mm2 = _mm_unpacklo_pi8(mm2,mm3);				//mm2 = row[+1][0]( 0 1 2 3)
+		mm6 = _mm_unpackhi_pi8(mm6,mm3);				//mm6 = row[+1][0]( 4 5 6 7)
+
+		mm0 = _mm_mullo_pi16(mm0,PW_THREE);
+		mm4 = _mm_mullo_pi16(mm4,PW_THREE);
+
+		mm7 = _mm_cmpeq_pi8(mm7,mm7);
+		mm7 = _mm_srli_si64(mm7,(sizeof(MMWORD) - 2)*BYTE_BIT);
+
+		mm1 = _mm_add_pi16(mm1,mm0);				//mm1=Int0L=( 0 1 2 3)
+		mm5 = _mm_add_pi16(mm5,mm4);				//mm5=Int0H=( 4 5 6 7)
+		mm2 = _mm_add_pi16(mm2,mm0);				//mm2=Int1L=( 0 1 2 3)
+		mm6 = _mm_add_pi16(mm6,mm4);				//mm6=Int1H=( 4 5 6 7)
+
+		_mm_store_si64((__m64*)outptr0,mm1);								//temporarily save
+		_mm_store_si64((__m64*)(outptr0)+1,mm5);			//the intermediate data
+   	    _mm_store_si64((__m64*)outptr1,mm2);
+        _mm_store_si64((__m64*)(outptr1)+1,mm6);
+
+		mm1 = _mm_and_si64(mm1,mm7);							//mm1 = (0 - - - )
+		mm2 = _mm_and_si64(mm2,mm7);							//mm2 = (0 - - - )
+
+		wk[0] = mm1;
+		wk[1] = mm2;
+
+		colctr += 7;
+		colctr = colctr&(-8);
+//		fprintf(stderr,"colctr_or = %d\n" , colctr);
+		while(colctr > 0){
+			if(colctr > 8){
+				mm0 = _mm_load_si64((__m64 *)(inptr0)+1);				//mm0 = row[0][1]
+				mm1 = _mm_load_si64((__m64 *)(inptr1_a)+1);				//mm1 = row[-1][1]
+				mm2 = _mm_load_si64((__m64 *)(inptr1_b)+1);				//mm2 = row[+1][1]
+			
+				mm3 = _mm_setzero_si64();		//mm3 = (all 0's)
+				mm4 = mm0;
+				mm0 = _mm_unpacklo_pi8(mm0,mm3);										//mm0 = row[0][1](0 1 2 3)
+				mm4 = _mm_unpackhi_pi8(mm4,mm3);										//mm4 = row[0][1](4 5 6 7)
+				mm5 = mm1;
+     		   	mm1 = _mm_unpacklo_pi8(mm1,mm3);										//mm1 = row[-1][1](0 1 2 3)
+                mm5 = _mm_unpackhi_pi8(mm5,mm3);										//mm5 = row[-1][1](4 5 6 7)
+				mm6 = mm2;
+				mm2 = _mm_unpacklo_pi8(mm2,mm3);										//mm2 = row[+1][1](0 1 2 3)
+				mm6 = _mm_unpackhi_pi8(mm6,mm3);										//mm6 = row[+1][1](4 5 6 7)
+		
+				mm0 = _mm_mullo_pi16(mm0,PW_THREE);
+				mm4 = _mm_mullo_pi16(mm4,PW_THREE);
+
+				mm1 = _mm_add_pi16(mm1,mm0);											//mm1 = Int0L = ( 0 1 2 3)
+				mm5 = _mm_add_pi16(mm5,mm4);											//mm5 = Int0H = ( 4 5 6 7)
+				mm2 = _mm_add_pi16(mm2,mm0);											//mm2 = Int1L = ( 0 1 2 3)
+				mm6 = _mm_add_pi16(mm6,mm4);											//mm6 = Int1H = ( 4 5 6 7)
+			
+                _mm_store_si64((__m64*)(outptr0)+2,mm1);				//temporarily save
+                _mm_store_si64((__m64*)(outptr0)+3,mm5);				//the intermediate data
+                _mm_store_si64((__m64*)(outptr1)+2,mm2);
+                _mm_store_si64((__m64*)(outptr1)+3,mm6);
+
+				mm1=_mm_slli_si64(mm1,(sizeof(MMWORD)-2)*BYTE_BIT);						//mm1=( - - - 0)
+				mm2=_mm_slli_si64(mm2,(sizeof(MMWORD)-2)*BYTE_BIT);						//mm2=( - - - 0) 
+
+				wk[2] = mm1;
+				wk[3] = mm2;
+			}else{																		//columnloop_last
+				mm1 = _mm_cmpeq_pi8(mm1,mm1);
+				mm1 = _mm_slli_si64(mm1,(sizeof(MMWORD)-2)*BYTE_BIT);
+				mm2 = mm1;
+			
+				mm_tmp = _mm_load_si64((__m64 *)(outptr0)+1);
+				mm1 = _mm_and_si64(mm1,mm_tmp);											//mm1 = ( - - - 7)
+				mm_tmp = _mm_load_si64((__m64 *)(outptr1)+1);
+				mm2 = _mm_and_si64(mm2,mm_tmp);											//mm2 = ( - - - 7)
+
+				wk[2] = mm1;
+				wk[3] = mm2;
+//				fprintf(stderr,"last_colctr = %d\n" , colctr);
+			}
+
+/* .upsample:  */
+			mm7 = _mm_load_si64((__m64 *)(outptr0));				//mm7=Int0L=( 0 1 2 3)
+			mm3 = _mm_load_si64((__m64 *)(outptr0)+1);		//mm3=Int0H=( 4 5 6 7)
+			
+			mm0 = mm7;
+			mm4 = mm3;
+			mm0 = _mm_srli_si64(mm0,2*BYTE_BIT);					//mm0=( 1 2 3 -)
+			mm4 = _mm_slli_si64(mm4,(sizeof(MMWORD) - 2)*BYTE_BIT);			//mm4=( - - - 4)
+			mm5 = mm7;
+			mm6 = mm3;
+			mm5 = _mm_srli_si64(mm5,(sizeof(MMWORD) - 2)*BYTE_BIT);			//mm5=(3 - - -)
+			mm6 = _mm_slli_si64(mm6,2*BYTE_BIT);					//mm6=(- 4 5 6)
+
+			mm0 = _mm_or_si64(mm0,mm4);						//mm0=(1 2 3 4)
+			mm5 = _mm_or_si64(mm5,mm6);						//mm5=(3 4 5 6)
+
+			mm1 = mm7;
+			mm2 = mm3;
+			mm1 = _mm_slli_si64(mm1,2*BYTE_BIT);					//mm1=(- 0 1 2)
+			mm2 = _mm_srli_si64(mm2,2*BYTE_BIT);					//mm2=(5 6 7 -)
+			mm4 = mm3;
+			mm4 = _mm_srli_si64(mm4,(sizeof(MMWORD)-2)*BYTE_BIT);			//mm4=(7 - - -)
+
+			mm1 = _mm_or_si64(mm1,wk[0]);						//mm1=(-1 0 1 2)
+			mm2 = _mm_or_si64(mm2,wk[2]);						//mm2=( 5 6 6 8)
+
+			wk[0] = mm4;
+
+			mm7 = _mm_mullo_pi16(mm7,PW_THREE);
+			mm3 = _mm_mullo_pi16(mm3,PW_THREE);
+			mm1 = _mm_add_pi16(mm1,PW_EIGHT);
+			mm5 = _mm_add_pi16(mm5,PW_EIGHT);
+			mm0 = _mm_add_pi16(mm0,PW_SEVEN);
+			mm2 = _mm_add_pi16(mm2,PW_SEVEN);
+
+			mm1 = _mm_add_pi16(mm1,mm7);
+			mm5 = _mm_add_pi16(mm5,mm3);
+			mm1 = _mm_srli_pi16(mm1,4);						//mm1=Out0LE=( 0  2  4  6)
+			mm5 = _mm_srli_pi16(mm5,4);						//mm5=Out0HE=( 8 10 12 14)
+			mm0 = _mm_add_pi16(mm0,mm7);
+			mm2 = _mm_add_pi16(mm2,mm3);
+			mm0 = _mm_srli_pi16(mm0,4);						//mm0=Out0LO=( 1  3  5  7)
+			mm2 = _mm_srli_pi16(mm2,4);						//mm2=Out0HO=( 9 11 13 15)
+
+			mm0 = _mm_slli_pi16(mm0,BYTE_BIT);
+			mm2 = _mm_slli_pi16(mm2,BYTE_BIT);
+			mm1 = _mm_or_si64(mm1,mm0);						//mm1=Out0L=( 0  1  2  3  4  5  6  7)
+			mm5 = _mm_or_si64(mm5,mm2);						//mm5=Out0H=( 8  9 10 11 12 13 14 15)
+			
+			_mm_store_si64((__m64 *)(outptr0),mm1);
+			_mm_store_si64((__m64 *)(outptr0)+1,mm5);
+
+			//process the lower row
+
+			mm6 = _mm_load_si64((__m64 *)(outptr1));		//mm6 = Int1L =( 0 1 2 3)
+			mm4 = _mm_load_si64((__m64 *)(outptr1)+1);		//mm4 = Int1H =( 4 5 6 7)
+
+			mm7 = mm6;
+			mm3 = mm4;
+			mm7 = _mm_srli_si64(mm7,2*BYTE_BIT);			//mm7 = (1 2 3 -) 
+			mm3 = _mm_slli_si64(mm3,(sizeof(MMWORD)-2)*BYTE_BIT);		//mm3 = (- - - 4)
+			mm0 = mm6;
+			mm2 = mm4;
+			mm0 = _mm_srli_si64(mm0,(sizeof(MMWORD)-2)*BYTE_BIT);		// mm0 = ( 3 - - - )
+			mm2 = _mm_slli_si64(mm2,2*BYTE_BIT);						// mm2 = ( - 4 5 6)
+
+			mm7 = _mm_or_si64(mm7,mm3);			//mm7 = ( 1 2 3 4)
+			mm0 = _mm_or_si64(mm0,mm2);			//mm0 = ( 3 4 5 6)
+
+			mm1 = mm6;
+			mm5 = mm4;
+			mm1 = _mm_slli_si64(mm1,2*BYTE_BIT);		//mm1 = (- 0 1 2)
+			mm5 = _mm_srli_si64(mm5,2*BYTE_BIT);		//mm5 = (5 6 7 - )
+			mm3 = mm4;
+			mm3 = _mm_srli_si64(mm3,(sizeof(MMWORD)-2)*BYTE_BIT);	//mm3 = ( 7 - - - )
+
+			mm1 = _mm_or_si64(mm1,wk[1]);			//mm1 = (-1 0 1 2)
+			mm5 = _mm_or_si64(mm5,wk[3]);			//mm5 = ( 5 6 7 8)
+
+			wk[1] = mm3;
+
+			mm6 = _mm_mullo_pi16(mm6,PW_THREE);
+			mm4 = _mm_mullo_pi16(mm4,PW_THREE);
+			mm1 = _mm_add_pi16(mm1,PW_EIGHT);
+			mm0 = _mm_add_pi16(mm0,PW_EIGHT);
+			mm7 = _mm_add_pi16(mm7,PW_SEVEN);
+			mm5 = _mm_add_pi16(mm5,PW_SEVEN);
+
+			mm1 = _mm_add_pi16(mm1,mm6);
+			mm0 = _mm_add_pi16(mm0,mm4);
+			mm1 = _mm_srli_pi16(mm1,4);
+			mm0 = _mm_srli_pi16(mm0,4);
+			mm7 = _mm_add_pi16(mm7,mm6);
+			mm5 = _mm_add_pi16(mm5,mm4);
+			mm7 = _mm_srli_pi16(mm7,4);
+			mm5 = _mm_srli_pi16(mm5,4);
+
+			mm7 = _mm_slli_pi16(mm7,BYTE_BIT);
+			mm5 = _mm_slli_pi16(mm5,BYTE_BIT);
+			mm1 = _mm_or_si64(mm1,mm7);
+			mm0 = _mm_or_si64(mm0,mm5);
+
+            _mm_store_si64((__m64 *)(outptr1),mm1);
+            _mm_store_si64((__m64 *)(outptr1)+1,mm0);
+
+			colctr -= sizeof(MMWORD);
+			inptr1_a += sizeof(MMWORD);
+			inptr0 += sizeof(MMWORD);
+			inptr1_b += sizeof(MMWORD);
+			outptr0 += 2*sizeof(MMWORD);
+			outptr1 += 2*sizeof(MMWORD);
+
+/*			asm(".set noreorder\r\n"
+			"subu	%0,%6,8\r\n"
+			"addu	%1,%7,8\r\n"
+			"addu	%2,%8,8\r\n"
+			"addu	%3,%9,8\r\n"
+			"addu	%4,%10,16\r\n"
+			"addu	%5,%11,16\r\n"
+			:"=r"(colctr),"=r"(inptr1_a),"=r"(inptr0),"=r"(inptr1_b),"=r"(outptr0),"=r"(outptr1)
+			:"r"(colctr),"r"(inptr1_a),"r"(inptr0),"r"(inptr1_b),"r"(outptr0),"r"(outptr1)
+			:
+			);*/
+		}
+    colctr = downsampled_width;
+	inrow += 1;
+	outrow += 2;
+//	rowctr -= 2;
+	}
+}
+
+
+#define RGBX_FILLER_0XFF 1
+
+
+#include "jdclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_RGB_RED
+#define RGB_GREEN EXT_RGB_GREEN
+#define RGB_BLUE EXT_RGB_BLUE
+#define RGB_PIXELSIZE EXT_RGB_PIXELSIZE
+#define jsimd_ycc_rgb_convert_mmx jsimd_ycc_extrgb_convert_mmx
+#include "jdclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_RGBX_RED
+#define RGB_GREEN EXT_RGBX_GREEN
+#define RGB_BLUE EXT_RGBX_BLUE
+#define RGB_PIXELSIZE EXT_RGBX_PIXELSIZE
+#define jsimd_ycc_rgb_convert_mmx jsimd_ycc_extrgbx_convert_mmx
+#include "jdclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_BGR_RED
+#define RGB_GREEN EXT_BGR_GREEN
+#define RGB_BLUE EXT_BGR_BLUE
+#define RGB_PIXELSIZE EXT_BGR_PIXELSIZE
+#define jsimd_ycc_rgb_convert_mmx jsimd_ycc_extbgr_convert_mmx
+#include "jdclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_BGRX_RED
+#define RGB_GREEN EXT_BGRX_GREEN
+#define RGB_BLUE EXT_BGRX_BLUE
+#define RGB_PIXELSIZE EXT_BGRX_PIXELSIZE
+#define jsimd_ycc_rgb_convert_mmx jsimd_ycc_extbgrx_convert_mmx
+#include "jdclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_XBGR_RED
+#define RGB_GREEN EXT_XBGR_GREEN
+#define RGB_BLUE EXT_XBGR_BLUE
+#define RGB_PIXELSIZE EXT_XBGR_PIXELSIZE
+#define jsimd_ycc_rgb_convert_mmx jsimd_ycc_extxbgr_convert_mmx
+#include "jdclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_XRGB_RED
+#define RGB_GREEN EXT_XRGB_GREEN
+#define RGB_BLUE EXT_XRGB_BLUE
+#define RGB_PIXELSIZE EXT_XRGB_PIXELSIZE
+#define jsimd_ycc_rgb_convert_mmx jsimd_ycc_extxrgb_convert_mmx
+#include "jdclrmmx_loongson.c"
+
 #endif /* DCT_ISLOW_SUPPORTED */
+
+

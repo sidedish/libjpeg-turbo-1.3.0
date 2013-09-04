@@ -134,7 +134,7 @@ jsimd_can_ycc_rgb (void)
     return 1;
 
   if (simd_support & JSIMD_LOONGSON)
-    return 0; //TODO
+    return 1; //TODO
 
   return 0;
 }
@@ -302,6 +302,41 @@ jsimd_ycc_rgb_convert (j_decompress_ptr cinfo,
     mmxfct(cinfo->output_width, input_buf,
         input_row, output_buf, num_rows);
 #endif
+  void (*mmxfct)(JDIMENSION, JSAMPIMAGE, JDIMENSION, JSAMPARRAY, int);
+
+  switch(cinfo->out_color_space)
+  {
+    case JCS_EXT_RGB:
+      mmxfct=jsimd_ycc_extrgb_convert_mmx;
+      break;
+    case JCS_EXT_RGBX:
+    case JCS_EXT_RGBA:
+      mmxfct=jsimd_ycc_extrgbx_convert_mmx;
+      break;
+    case JCS_EXT_BGR:
+      mmxfct=jsimd_ycc_extbgr_convert_mmx;
+      break;
+    case JCS_EXT_BGRX:
+    case JCS_EXT_BGRA:
+      mmxfct=jsimd_ycc_extbgrx_convert_mmx;
+      break;
+    case JCS_EXT_XBGR:
+    case JCS_EXT_ABGR:
+      mmxfct=jsimd_ycc_extxbgr_convert_mmx;
+      break;
+    case JCS_EXT_XRGB:
+    case JCS_EXT_ARGB:
+      mmxfct=jsimd_ycc_extxrgb_convert_mmx;
+      break;
+    default:
+      mmxfct=jsimd_ycc_rgb_convert_mmx;
+      break;
+  }
+
+
+    mmxfct(cinfo->output_width, input_buf,
+        input_row, output_buf, num_rows);
+
 }
 
 GLOBAL(int)
@@ -474,7 +509,7 @@ jsimd_can_h2v2_fancy_upsample (void)
     return 1;
 
   if (simd_support & JSIMD_LOONGSON)
-    return 0; //TODO
+    return 1; //TODO
 
   return 0;
 }
@@ -517,6 +552,8 @@ jsimd_h2v2_fancy_upsample (j_decompress_ptr cinfo,
     jsimd_h2v2_fancy_upsample_mmx(cinfo->max_v_samp_factor,
         compptr->downsampled_width, input_data, output_data_ptr);
 #endif
+jsimd_h2v2_fancy_upsample_mmx(cinfo->max_v_samp_factor,
+        compptr->downsampled_width, input_data, output_data_ptr);
 }
 
 GLOBAL(void)
