@@ -84,7 +84,7 @@ jsimd_can_rgb_ycc (void)
     return 1;
 
   if (simd_support & JSIMD_LOONGSON)
-    return 0; //TODO
+    return 1; //TODO
 
   return 0;
 }
@@ -192,6 +192,38 @@ jsimd_rgb_ycc_convert (j_compress_ptr cinfo,
     mmxfct(cinfo->image_width, input_buf,
         output_buf, output_row, num_rows);
 #endif
+void (*mmxfct)(JDIMENSION, JSAMPARRAY, JSAMPIMAGE, JDIMENSION, int);      
+switch(cinfo->in_color_space)
+{
+    case JCS_EXT_RGB:
+        mmxfct=jsimd_extrgb_ycc_convert_mmx;
+        break;
+    case JCS_EXT_RGBX:
+    case JCS_EXT_RGBA:
+      mmxfct=jsimd_extrgbx_ycc_convert_mmx;
+      break;
+    case JCS_EXT_BGR:
+      mmxfct=jsimd_extbgr_ycc_convert_mmx;
+      break;
+    case JCS_EXT_BGRX:
+    case JCS_EXT_BGRA:
+      mmxfct=jsimd_extbgrx_ycc_convert_mmx;
+      break;
+    case JCS_EXT_XBGR:
+    case JCS_EXT_ABGR:
+      mmxfct=jsimd_extxbgr_ycc_convert_mmx;
+      break;
+    case JCS_EXT_XRGB:
+    case JCS_EXT_ARGB:
+      mmxfct=jsimd_extxrgb_ycc_convert_mmx;
+      break;
+    default:
+      mmxfct=jsimd_rgb_ycc_convert_mmx;
+      break;
+  }
+    mmxfct(cinfo->image_width, input_buf,
+        output_buf, output_row, num_rows);
+
 }
 
 GLOBAL(void)

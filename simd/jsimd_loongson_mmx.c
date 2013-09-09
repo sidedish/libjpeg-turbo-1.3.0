@@ -93,6 +93,17 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
 #define FDESCALE_P2       (CONST_BITS+PASS1_BITS)
 #define CENTERJSAMPLE    128
 
+#define WORD_BIT         16   
+#define F_0_081    ((short)   5329)             /* FIX(0.08131) */
+#define F_0_114    ((short)   7471)             /* FIX(0.11400) */
+#define F_0_168    ((short)  11059)             /* FIX(0.16874) */
+#define F_0_250    ((short)  16384)             /* FIX(0.25000) */
+#define F_0_299    ((short)  19595)             /* FIX(0.29900) */
+#define F_0_331    ((short)  21709)             /* FIX(0.33126) */
+#define F_0_418    ((short)  27439)             /* FIX(0.41869) */
+#define F_0_587    ((short)  38470)             /* FIX(0.58700) */
+#define F_0_337    ((short)   (F_0_587 - F_0_250))      /* FIX(0.58700) - FIX(0.25000) */
+
 #if CONST_BITS == 13
 #define FIX_0_298  ((short)  2446)	/* FIX(0.298631336) */
 #define FIX_0_390  ((short)  3196)	/* FIX(0.390180644) */
@@ -187,7 +198,12 @@ enum const_index{
 	index_PW_F0402,
 	index_PW_MF0228,
 	index_PW_MF0344_F0285,
-	index_PD_ONEHALF
+	index_PD_ONEHALF,
+	index_PW_F0299_F0337,
+        index_PW_F0114_F0250,
+        index_PW_MF016_MF033,
+        index_PW_MF008_MF041,
+        index_PD_ONEHALFM1_CJ
 };
 
 #define _uint64_set_pi8(a, b, c, d, e, f, g, h) (((uint64_t)(uint8_t)a << 56) | ((uint64_t)(uint8_t)b << 48) | ((uint64_t)(uint8_t)c << 40)|((uint64_t)(uint8_t)d << 32) | ((uint64_t)(uint8_t)e << 24) | ((uint64_t)(uint8_t)f << 16) | ((uint64_t)(uint8_t)g << 8)|((uint64_t)(uint8_t)h))
@@ -214,9 +230,15 @@ uint64_t const_value[]={
 	_uint64_set_pi16(7,7,7,7),
 	_uint64_set_pi16(8,8,8,8),
 	_uint64_set_pi16(F_0_402,F_0_402,F_0_402,F_0_402),
-    _uint64_set_pi16(-F_0_228,-F_0_228,-F_0_228,-F_0_228),
+    	_uint64_set_pi16(-F_0_228,-F_0_228,-F_0_228,-F_0_228),
 	_uint64_set_pi16(F_0_285,-F_0_344, F_0_285, -F_0_344),
-	_uint64_set_pi32((int)(1 << (SCALEBITS-1)),(int)(1 << (SCALEBITS-1)))
+	_uint64_set_pi32((int)(1 << (SCALEBITS-1)), (int)(1 << (SCALEBITS-1))),
+	_uint64_set_pi16(F_0_337, F_0_299, F_0_337, F_0_299),
+        _uint64_set_pi16(F_0_250, F_0_114, F_0_250, F_0_114),
+        _uint64_set_pi16(-F_0_331, -F_0_168, -F_0_331, -F_0_168),
+        _uint64_set_pi16(-F_0_418, -F_0_081, -F_0_418, -F_0_081),
+        _uint64_set_pi32(((1 << (SCALEBITS-1)) - 1 + (CENTERJSAMPLE << SCALEBITS)), ((1 << (SCALEBITS-1)) - 1 + (CENTERJSAMPLE << SCALEBITS)))
+
 };
 
 #define get_const_value(index) (*(__m64*)&const_value[index])
@@ -241,8 +263,13 @@ uint64_t const_value[]={
 #define PW_EIGHT		get_const_value(index_PW_EIGHT)
 #define PW_F0402		get_const_value(index_PW_F0402)
 #define PW_MF0228		get_const_value(index_PW_MF0228)
-#define PW_MF0344_F0285	get_const_value(index_PW_MF0344_F0285)
+#define PW_MF0344_F0285		get_const_value(index_PW_MF0344_F0285)
 #define PD_ONEHALF		get_const_value(index_PD_ONEHALF)
+#define PW_F0299_F0337  get_const_value(index_PW_F0299_F0337)
+#define PW_F0114_F0250  get_const_value(index_PW_F0114_F0250)
+#define PW_MF016_MF033  get_const_value(index_PW_MF016_MF033)
+#define PW_MF008_MF041  get_const_value(index_PW_MF008_MF041)
+#define PD_ONEHALFM1_CJ get_const_value(index_PD_ONEHALFM1_CJ)
 
 
 #ifndef MMWORD
@@ -251,7 +278,6 @@ uint64_t const_value[]={
 #ifndef BYTE_BIT
 #define BYTE_BIT 8
 #endif
-
 
 /* Multiply an INT32 variable by an INT32 constant to yield an INT32 result.
  *  * For 8-bit samples with the recommended scaling, all the variable
@@ -1880,6 +1906,93 @@ jsimd_h2v2_fancy_upsample_mmx (int max_v_samp_factor,JDIMENSION downsampled_widt
 #define jsimd_ycc_rgb_convert_mmx jsimd_ycc_extxrgb_convert_mmx
 #include "jdclrmmx_loongson.c"
 
+
+/*
+ * Convert some rows of samples to the JPEG colorspace.
+ *
+ * Note that we change from the application's interleaved-pixel format
+ * to our internal noninterleaved, one-plane-per-component format.
+ * The input buffer is therefore three times as wide as the output buffer.
+ *
+ * A starting row offset is provided only for the output buffer.  The caller
+ * can easily adjust the passed input_buf value to accommodate any row
+ * offset required on that side.
+ */
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED 	0	
+#define RGB_GREEN 	1
+#define RGB_BLUE 	2
+#define RGB_PIXELSIZE	3	
+#include "jcclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_RGB_RED
+#define RGB_GREEN EXT_RGB_GREEN
+#define RGB_BLUE EXT_RGB_BLUE
+#define RGB_PIXELSIZE EXT_RGB_PIXELSIZE
+#define jsimd_rgb_ycc_convert_mmx jsimd_extrgb_ycc_convert_mmx
+#include "jcclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_RGBX_RED
+#define RGB_GREEN EXT_RGBX_GREEN
+#define RGB_BLUE EXT_RGBX_BLUE
+#define RGB_PIXELSIZE EXT_RGBX_PIXELSIZE
+#define jsimd_rgb_ycc_convert_mmx jsimd_extrgbx_ycc_convert_mmx
+#include "jcclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_BGR_RED
+#define RGB_GREEN EXT_BGR_GREEN
+#define RGB_BLUE EXT_BGR_BLUE
+#define RGB_PIXELSIZE EXT_BGR_PIXELSIZE
+#define jsimd_rgb_ycc_convert_mmx jsimd_extbgr_ycc_convert_mmx
+#include "jcclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_BGRX_RED
+#define RGB_GREEN EXT_BGRX_GREEN
+#define RGB_BLUE EXT_BGRX_BLUE
+#define RGB_PIXELSIZE EXT_BGRX_PIXELSIZE
+#define jsimd_rgb_ycc_convert_mmx jsimd_extbgrx_ycc_convert_mmx
+#include "jcclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_XBGR_RED
+#define RGB_GREEN EXT_XBGR_GREEN
+#define RGB_BLUE EXT_XBGR_BLUE
+#define RGB_PIXELSIZE EXT_XBGR_PIXELSIZE
+#define jsimd_rgb_ycc_convert_mmx jsimd_extxbgr_ycc_convert_mmx
+#include "jcclrmmx_loongson.c"
+
+#undef RGB_RED
+#undef RGB_GREEN
+#undef RGB_BLUE
+#undef RGB_PIXELSIZE
+#define RGB_RED EXT_XRGB_RED
+#define RGB_GREEN EXT_XRGB_GREEN
+#define RGB_BLUE EXT_XRGB_BLUE
+#define RGB_PIXELSIZE EXT_XRGB_PIXELSIZE
+#define jsimd_rgb_ycc_convert_mmx jsimd_extxrgb_ycc_convert_mmx
+#include "jcclrmmx_loongson.c"
+
 #endif /* DCT_ISLOW_SUPPORTED */
-
-
