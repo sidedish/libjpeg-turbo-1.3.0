@@ -1995,4 +1995,99 @@ jsimd_h2v2_fancy_upsample_mmx (int max_v_samp_factor,JDIMENSION downsampled_widt
 #define jsimd_rgb_ycc_convert_mmx jsimd_extxrgb_ycc_convert_mmx
 #include "jcclrmmx_loongson.c"
 
+
+/*
+ * Quantize/descale the coefficients, and store into coef_blocks[].
+ */
+
+GLOBAL(void)
+jsimd_quantize_mmx(JCOEFPTR coef_block, DCTELEM * divisors, DCTELEM * workspace)
+{
+        int i,j;
+        JCOEFPTR output_ptr = coef_block;
+        int loopcount = 2;
+        int loopsize = DCTSIZE2/DCTSIZE/loopcount;
+	__m64 mm0, mm1, mm2, mm3, mm4, mm5, mm6, mm7;
+	__m64 corr0, corr1, recip0, recip1, scale0, scale1;
+
+	for (i = loopcount; i > 0; i --) {
+
+                for (j = loopsize; j > 0; j --) {
+
+                        mm2 = _mm_load_si64((__m64 *)&workspace[0]);
+                        mm3 = _mm_load_si64((__m64 *)&workspace[0 + loopsize]);
+
+			mm0 = mm2;
+			mm1 = mm3;
+
+                        mm2 = _mm_srai_pi16(mm2, (WORD_BIT-1));                 	//-1 if value < 0, 0 otherwise
+                        mm3 = _mm_srai_pi16(mm3, (WORD_BIT-1));
+			
+                        mm0 = _mm_xor_si64(mm0, mm2);                                	//val = -val
+                        mm1 = _mm_xor_si64(mm1, mm3);
+                        mm0 = _mm_sub_pi16(mm0, mm2);
+                        mm1 = _mm_sub_pi16(mm1, mm3);
+			
+                        corr0 = _mm_load_si64((__m64 *)&divisors[DCTSIZE2*1]);    	//correction
+                        corr1 = _mm_load_si64((__m64 *)&divisors[DCTSIZE2*1 + loopsize]);
+
+                        mm0 = _mm_add_pi16(mm0, corr0);                               	//correction + roundfactor
+                        mm1 = _mm_add_pi16(mm1, corr1);
+			
+			mm4 = mm0;
+			mm5 = mm1;
+			
+                        recip0 = _mm_load_si64((__m64 *)&divisors[DCTSIZE2*0]);   	// reciprocal
+                        recip1 = _mm_load_si64((__m64 *)&divisors[DCTSIZE2*0 + loopsize]);
+
+                        mm0 = _mm_mulhi_pi16(mm0, recip0);
+                        mm1 = _mm_mulhi_pi16(mm1, recip1);
+
+			mm0 = _mm_add_pi16(mm0, mm4);                        		//reciprocal is always negative (MSB=1),
+			mm1 = _mm_add_pi16(mm1, mm5);                        		//so we always need to add the initial value
+									     		//(input value is never negative as we
+									     		//inverted it at the start of this routine)
+
+			scale0 = _mm_load_si64((__m64 *)&divisors[DCTSIZE2*2]);    	// scale
+                        scale1 = _mm_load_si64((__m64 *)&divisors[DCTSIZE2*2 + loopsize]);
+
+			mm6 = scale0;
+			mm7 = scale1;
+			mm4 = mm0;
+			mm5 = mm1;
+			
+                        mm0 = _mm_mulhi_pi16(mm0, mm6);
+                        mm1 = _mm_mulhi_pi16(mm1, mm7);
+
+                        mm6 = _mm_srai_pi16(mm6, (WORD_BIT-1));             		//determine if scale is negative
+                        mm7 = _mm_srai_pi16(mm7, (WORD_BIT-1));
+
+                        mm6 = _mm_and_si64(mm6, mm4);                        		//and add input if it is
+                        mm7 = _mm_and_si64(mm7, mm5);
+                        mm0 = _mm_add_pi16(mm0, mm6);
+                        mm1 = _mm_add_pi16(mm1, mm7);
+
+                        mm4 = _mm_srai_pi16(mm4, (WORD_BIT-1));               		//then check if negative input
+                        mm5 = _mm_srai_pi16(mm5, (WORD_BIT-1));
+
+                        mm4 = _mm_and_si64(mm4, scale0);                      		//and add scale if it is
+                        mm5 = _mm_and_si64(mm5, scale1);
+                        mm0 = _mm_add_pi16(mm0, mm4);
+                        mm1 = _mm_add_pi16(mm1, mm5);
+
+                        mm0 = _mm_xor_si64(mm0, mm2);                        		//val = -val
+                        mm1 = _mm_xor_si64(mm1, mm3);
+                        mm0 = _mm_sub_pi16(mm0, mm2);
+                        mm1 = _mm_sub_pi16(mm1, mm3);
+			
+                        _mm_store_si64((__m64 *)&output_ptr[0], mm0);
+                        _mm_store_si64((__m64 *)&output_ptr[0 + loopsize], mm1);
+
+			workspace += DCTSIZE;
+                        divisors += DCTSIZE;
+                        output_ptr += DCTSIZE;
+                        }
+                }
+}
+
 #endif /* DCT_ISLOW_SUPPORTED */

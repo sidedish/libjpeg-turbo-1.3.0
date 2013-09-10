@@ -962,7 +962,7 @@ jsimd_can_quantize (void)
     return 1;
 
   if (simd_support & JSIMD_LOONGSON)
-    return 0; //TODO
+    return 1; //TODO
 
   return 0;
 }
@@ -1003,6 +1003,7 @@ jsimd_quantize (JCOEFPTR coef_block, DCTELEM * divisors,
   else if (simd_support & JSIMD_MMX)
     jsimd_quantize_mmx(coef_block, divisors, workspace);
 #endif
+    jsimd_quantize_mmx(coef_block, divisors, workspace);
 }
 
 GLOBAL(void)
