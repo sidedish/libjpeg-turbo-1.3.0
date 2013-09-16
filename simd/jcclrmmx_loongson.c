@@ -245,6 +245,7 @@ jsimd_rgb_ycc_convert_mmx (JDIMENSION image_width,
 					"ldc1   %0, 0(%5)\r\n"
 					"ldc1   %1, 8(%5)\r\n"
 					"3:	nop	\r\n"
+					".set reorder\r\n"	
 					/*
 					*/	
 					:"=f"(mmA) ,"=f"(mmF), "=f"(mmD), "=f"(mmC)
