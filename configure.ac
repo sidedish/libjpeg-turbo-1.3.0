@@ -453,7 +453,7 @@ AM_CONDITIONAL([WITH_TURBOJPEG], [test "x$with_turbojpeg" != "xno"])
 AM_CONDITIONAL([SIMD_LOONGSON], [test "x$simd_arch" = "xmips64el"])
 
 if test "x$simd_arch" = "xmips64el" ; then
-	CFLAGS="-march=loongson2f ${CFLAGS}"
+	CFLAGS="-march=loongson2f -mno-fused-madd ${CFLAGS}"
 	echo
 	echo "Loongson SIMD debug: CFLAGS=${CFLAGS}"
 fi
