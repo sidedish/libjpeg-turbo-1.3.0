@@ -388,7 +388,7 @@ jsimd_can_h2v2_downsample (void)
     return 1;
 
   if (simd_support & JSIMD_LOONGSON)
-    return 0; //TODO
+    return 1; //TODO
 
   return 0;
 }
@@ -429,6 +429,9 @@ jsimd_h2v2_downsample (j_compress_ptr cinfo, jpeg_component_info * compptr,
         compptr->v_samp_factor, compptr->width_in_blocks,
         input_data, output_data);
 #endif
+    jsimd_h2v2_downsample_mmx(cinfo->image_width, cinfo->max_v_samp_factor,
+        compptr->v_samp_factor, compptr->width_in_blocks,
+        input_data, output_data);
 }
 
 GLOBAL(void)

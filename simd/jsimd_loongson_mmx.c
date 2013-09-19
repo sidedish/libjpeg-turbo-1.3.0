@@ -93,6 +93,7 @@ Sorry, this code only copes with 8x8 DCTs. /* deliberate syntax err */
 #define FDESCALE_P2       (CONST_BITS+PASS1_BITS)
 #define CENTERJSAMPLE    128
 
+#define BYTE_BIT 8
 #define WORD_BIT         16   
 #define F_0_081    ((short)   5329)             /* FIX(0.08131) */
 #define F_0_114    ((short)   7471)             /* FIX(0.11400) */
@@ -1569,7 +1570,7 @@ jsimd_h2v2_fancy_upsample_mmx (int max_v_samp_factor,JDIMENSION downsampled_widt
 {
   JSAMPARRAY output_data = *output_data_ptr;
   register int colctr = downsampled_width;
-  register int rowctr =  max_v_samp_factor;
+ // register int rowctr =  max_v_samp_factor;
   register JSAMPROW inptr0, inptr1,outptr0,outptr1;
   register __m64 mm0,mm1,mm2,mm3,mm4,mm5,mm6,mm7;
   __m64 wk[4],mm_tmp;
@@ -2090,4 +2091,96 @@ jsimd_quantize_mmx(JCOEFPTR coef_block, DCTELEM * divisors, DCTELEM * workspace)
                 }
 }
 
+/*
+ * Downsample pixel values of a single component.
+ * This version handles the standard case of 2:1 horizontal and 2:1 vertical,
+ * without smoothing.
+ */
+
+GLOBAL(void)
+jsimd_h2v2_downsample_mmx(JDIMENSION image_width, int max_v_samp_factor,
+        		  JDIMENSION v_samp_factor, JDIMENSION width_in_blocks,
+        		  JSAMPARRAY input_data, JSAMPARRAY output_data)
+{
+  	int inrow, outrow;
+  	JDIMENSION outcol;
+  	JDIMENSION output_cols = width_in_blocks << 3;
+  	register int bias;
+	register JSAMPROW inptr0, inptr1, outptr;
+	__m64 mm0, mm1, mm2, mm3, mm4, mm5, mm6, mm7;
+
+	// expand_right_edge
+	register JSAMPROW ptr;
+  	register JSAMPLE pixval;
+  	register int count;
+  	int row;
+	output_cols <<= 1;			//output_cols * 2
+	JDIMENSION input_cols = image_width;
+  	int numcols = (int) (output_cols - input_cols);		
+	int num_rows = max_v_samp_factor;
+	if (numcols > 0) {
+		for (row = 0; row < num_rows; row++) {
+			ptr = input_data[row] + image_width;
+			pixval = ptr[-1];       // don't need GETJSAMPLE() here	
+			for (count = numcols; count > 0; count--)
+				*ptr++ = pixval;
+		}
+	}
+
+	//h2v2_downsample	
+	output_cols >>= 1;	
+	bias = (1 << 17) + 1;  			//0x00020001
+	mm7 = _mm_set1_pi32(bias);		//mm7 = {1,2,1,2} bias = 1,2,1,2,... for successive samples
+	mm6 = _mm_cmpeq_pi16(mm6, mm6);		//{FFFF FFFF FFFF FFFF}
+	mm6 = _mm_srli_pi16(mm6, BYTE_BIT);	//{0xFF 0x00 0xFF 0x00 ..}
+  	for (outrow = v_samp_factor; outrow > 0; outrow --) {
+		outptr = output_data[0];
+    		inptr0 = input_data[0];
+    		inptr1 = input_data[1];
+		for (outcol = output_cols; outcol > 0; outcol -= 8) {
+
+			mm0 = _mm_load_si64((__m64 *) &inptr0[0]);
+			mm1 = _mm_load_si64((__m64 *) &inptr1[0]);
+			mm2 = _mm_load_si64((__m64 *) &inptr0[0 + DCTSIZE]);
+			mm3 = _mm_load_si64((__m64 *) &inptr1[0 + DCTSIZE]);
+			
+			mm4 = mm0;
+			mm5 = mm1;
+			mm0 = _mm_and_si64(mm0, mm6);
+			mm4 = _mm_srli_pi16(mm4, BYTE_BIT);
+			mm1 = _mm_and_si64(mm1, mm6);
+			mm5 = _mm_srli_pi16(mm5, BYTE_BIT);
+			mm0 = _mm_add_pi16(mm0, mm4);	
+			mm1 = _mm_add_pi16(mm1, mm5);
+
+			mm4 = mm2;
+			mm5 = mm3;
+			mm2 = _mm_and_si64(mm2, mm6);
+			mm4 = _mm_srli_pi16(mm4, BYTE_BIT);
+			mm3 = _mm_and_si64(mm3, mm6);
+			mm5 = _mm_srli_pi16(mm5, BYTE_BIT);
+			mm2 = _mm_add_pi16(mm2, mm4);	
+			mm3 = _mm_add_pi16(mm3, mm5);
+			
+			mm0 = _mm_add_pi16(mm0, mm1);
+			mm2 = _mm_add_pi16(mm2, mm3);
+			mm0 = _mm_add_pi16(mm0, mm7);
+			mm2 = _mm_add_pi16(mm2, mm7);
+			mm0 = _mm_srli_pi16(mm0, 2);
+			mm2 = _mm_srli_pi16(mm2, 2);
+						
+			mm0 = _mm_packs_pu16(mm0, mm2);	
+
+			_mm_store_si64((__m64 *)&outptr[0], mm0);
+
+			inptr0 += 2*DCTSIZE;
+			inptr1 += 2*DCTSIZE;
+			outptr += 1*DCTSIZE;	
+			
+		}
+	input_data += 2;
+	output_data += 1;
+	}
+}
+	
 #endif /* DCT_ISLOW_SUPPORTED */
